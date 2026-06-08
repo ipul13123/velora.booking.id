@@ -15,6 +15,7 @@ const stockRef = db.collection('settings').doc('stock');
 const blockedRef = db.collection('settings').doc('blocked');
 const ordersRef = db.collection('orders');
 const usageRef = db.collection('usage');
+const ADMIN_WHATSAPP = '6285717835248';
 
 const PRICE_MAP = {
   'Sidang': { 'Convex': 85000, 'Papan Bulat': 60000, 'Papan Kubah': 55000 },
@@ -57,8 +58,34 @@ function getStockOnDate(dateStr){ const used=usageByDate[dateStr]||{}, r={}; PAP
 function showPage(p){ if(p==='admin'&&!isAdmin){showAdminOverlay();return;} document.querySelectorAll('.page').forEach(el=>el.classList.remove('active')); document.getElementById('page-'+p).classList.add('active'); if(p==='cek') renderCalendar(); if(p==='admin') renderAdmin(); window.scrollTo(0,0); }
 function triggerAdmin(){ isAdmin ? showPage('admin') : showAdminOverlay(); }
 function showAdminOverlay(){ document.getElementById('admin-login-overlay').classList.add('active'); setTimeout(()=>document.getElementById('admin-email-input').focus(),100); }
-function closeAdminOverlay(){ document.getElementById('admin-login-overlay').classList.remove('active'); document.getElementById('admin-err').style.display='none'; document.getElementById('admin-email-input').value=''; document.getElementById('admin-pass-input').value=''; }
-async function checkAdminLogin(){ try{ await auth.signInWithEmailAndPassword(document.getElementById('admin-email-input').value.trim(), document.getElementById('admin-pass-input').value); }catch(e){ console.error(e); document.getElementById('admin-err').style.display='block'; } }
+function closeAdminOverlay(){
+  document.getElementById('admin-login-overlay').classList.remove('active');
+  document.getElementById('admin-err').style.display='none';
+  document.getElementById('admin-email-input').value='';
+  document.getElementById('admin-pass-input').value='';
+}
+function showAdminError(message){
+  const el=document.getElementById('admin-err');
+  el.textContent=message;
+  el.style.display='block';
+}
+async function checkAdminLogin(){
+  const email=document.getElementById('admin-email-input').value.trim();
+  const password=document.getElementById('admin-pass-input').value;
+  if(!email||!password){ showAdminError('Isi email dan password admin.'); return; }
+  try{
+    await auth.signInWithEmailAndPassword(email,password);
+  }catch(e){
+    console.error(e);
+    const code=e.code||'';
+    if(code.includes('unauthorized-domain')) showAdminError('Domain website belum diizinkan di Firebase Authentication.');
+    else if(code.includes('user-not-found')||code.includes('invalid-credential')) showAdminError('Email admin belum terdaftar atau password salah.');
+    else if(code.includes('wrong-password')) showAdminError('Password admin salah.');
+    else if(code.includes('invalid-email')) showAdminError('Format email admin belum benar.');
+    else if(code.includes('network-request-failed')) showAdminError('Koneksi internet bermasalah. Coba lagi.');
+    else showAdminError('Login gagal. Cek Firebase Authentication dan domain Netlify.');
+  }
+}
 async function adminLogout(){ await auth.signOut(); showPage('home'); }
 auth.onAuthStateChanged(u=>{ isAdmin=!!u; document.getElementById('admin-badge').style.display=isAdmin?'inline':'none'; if(isAdmin){ closeAdminOverlay(); listenAdminOrders(); } else { orders=[]; if(ordersUnsub) ordersUnsub(); if(document.getElementById('page-admin')?.classList.contains('active')) showPage('home'); } });
 
@@ -88,6 +115,33 @@ function checkDate(dateStr){
   document.getElementById('f-tgl').value=dateStr;
 }
 function updatePrice(){ const a=document.getElementById('f-acara').value, p=document.getElementById('f-papan').value, g=document.getElementById('price-group'); if(a&&p&&PRICE_MAP[a]?.[p]){ document.getElementById('price-show').innerHTML=`<span>Rp </span>${PRICE_MAP[a][p].toLocaleString('id-ID')}`; g.style.display='block'; } else g.style.display='none'; }
+function getWhatsAppLink(message){
+  return `https://wa.me/${ADMIN_WHATSAPP}?text=${encodeURIComponent(message)}`;
+}
+function openWhatsAppAdmin(message='Halo Admin Velora, saya ingin bertanya tentang sewa papan ucapan.'){
+  window.open(getWhatsAppLink(message), '_blank');
+}
+function buildOrderWhatsAppMessage(order){
+  return [
+    'Halo Admin Velora, saya sudah membuat pesanan.',
+    '',
+    `Nama: ${order.nama}`,
+    `No. HP: ${order.hp}`,
+    `Tanggal: ${formatDate(order.tanggal)}`,
+    `Jam: ${order.jam}`,
+    `Durasi: ${order.durasi}`,
+    `Lokasi: ${order.lokasi}`,
+    `Acara: ${order.acara}`,
+    `Jenis Papan: ${order.papan}`,
+    `Warna Bunga: ${order.warna}`,
+    `Total Sewa: Rp ${order.harga.toLocaleString('id-ID')}`,
+    `Min. DP 50%: Rp ${Math.ceil(order.harga*0.5).toLocaleString('id-ID')}`,
+    '',
+    `Ucapan: ${order.ucapan}`,
+    '',
+    'Mohon diproses ya, Admin.'
+  ].join('\n');
+}
 async function submitOrder(){
   if(!firebaseReady()){toast('Isi konfigurasi Firebase dulu.');return;}
   const fields=[['f-nama','Nama Penyewa'],['f-hp','No. HP'],['f-id','Identitas'],['f-tgl','Tanggal Sewa'],['f-jam','Jam'],['f-durasi','Durasi'],['f-lokasi','Lokasi'],['f-warna','Warna Bunga'],['f-acara','Kebutuhan Acara'],['f-papan','Jenis Papan'],['f-ucapan','Ucapan']];
@@ -108,9 +162,17 @@ async function submitOrder(){
     });
   }catch(e){ if(e.message==='blocked') toast('Tanggal ini sedang tidak tersedia.'); else if(e.message==='out') toast('Stok papan ini sudah habis di tanggal tersebut.'); else err(e); return; }
   document.getElementById('success-summary').innerHTML=`<div class="row"><span>Nama</span><span>${order.nama}</span></div><div class="row"><span>Tanggal</span><span>${formatDate(order.tanggal)} · ${order.jam}</span></div><div class="row"><span>Jenis</span><span>${order.papan} · ${order.acara}</span></div><div class="row"><span>Lokasi</span><span>${order.lokasi}</span></div><div class="row"><span>Durasi</span><span>${order.durasi}</span></div><div class="row"><span>Total Sewa</span><span>Rp ${order.harga.toLocaleString('id-ID')}</span></div><div class="row"><span>Min. DP (50%)</span><span style="color:var(--pink-deep)">Rp ${Math.ceil(order.harga*0.5).toLocaleString('id-ID')}</span></div>`;
+  const waMessage = buildOrderWhatsAppMessage(order);
+  const waLink = getWhatsAppLink(waMessage);
+  const waBtn = document.getElementById('wa-success-btn');
+  if(waBtn){
+    waBtn.style.display='inline-flex';
+    waBtn.onclick=()=>window.open(waLink,'_blank');
+  }
   ['f-nama','f-hp','f-tgl','f-jam','f-lokasi','f-ucapan'].forEach(id=>document.getElementById(id).value='');
   ['f-id','f-durasi','f-warna','f-acara','f-papan'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('price-group').style.display='none'; showPage('sukses');
+  setTimeout(()=>window.open(waLink,'_blank'), 350);
 }
 
 function renderAdmin(){
@@ -146,5 +208,6 @@ document.getElementById('admin-pass-input').addEventListener('keydown',e=>{if(e.
 document.getElementById('admin-email-input').addEventListener('keydown',e=>{if(e.key==='Enter')checkAdminLogin();});
 startRealtimeData();
 renderCalendar();
+
 
 

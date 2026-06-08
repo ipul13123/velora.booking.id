@@ -128,6 +128,10 @@
   .btn-pink:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(232,127,160,0.4); }
   .btn-outline { background:transparent; border:1.5px solid rgba(201,169,110,0.5); color:var(--gold-light); }
   .btn-outline:hover { background:rgba(201,169,110,0.1); }
+  .btn-whatsapp { background:#25d366; color:white; }
+  .btn-whatsapp:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(37,211,102,0.32); }
+  .nav-btn.whatsapp { background:#25d366; color:white; }
+  .nav-btn.whatsapp:hover { transform:translateY(-1px); box-shadow:0 4px 16px rgba(37,211,102,0.32); }
 
   /* ── SECTIONS ── */
   .page { display:none; }
@@ -407,6 +411,7 @@
     <button class="nav-btn ghost" onclick="showPage('gallery')">Koleksi</button>
     <button class="nav-btn ghost" onclick="showPage('cek')">Cek Tanggal</button>
     <button class="nav-btn primary" onclick="showPage('pesan')">Pesan Sekarang</button>
+    <button class="nav-btn whatsapp" onclick="openWhatsAppAdmin('Halo Admin Velora, saya ingin bertanya tentang sewa papan ucapan.')">Hubungi Admin</button>
     <button class="nav-btn ghost" id="admin-nav-btn" onclick="triggerAdmin()">⚙️ Admin</button>
     <span class="admin-badge" id="admin-badge" style="display:none">ADMIN</span>
   </div>
@@ -422,6 +427,7 @@
       <button class="btn btn-pink" onclick="showPage('pesan')">🌸 Pesan Sekarang</button>
       <button class="btn btn-outline" onclick="showPage('cek')">📅 Cek Ketersediaan</button>
       <button class="btn btn-outline" onclick="showPage('gallery')">🖼️ Lihat Koleksi</button>
+      <button class="btn btn-whatsapp" onclick="openWhatsAppAdmin('Halo Admin Velora, saya ingin bertanya tentang sewa papan ucapan.')">💬 Hubungi Admin</button>
     </div>
   </div>
 
@@ -671,6 +677,7 @@
       <h2>Pesanan Diterima!</h2>
       <p>Terima kasih telah memesan di <strong>Velora.id</strong>. Pesananmu sudah kami catat. Jangan lupa kirim bukti DP/Pelunasan ke admin ya!</p>
       <div class="order-summary" id="success-summary"></div>
+      <button class="btn btn-whatsapp" id="wa-success-btn" style="width:100%;margin-bottom:12px;display:none;justify-content:center;">💬 Kirim Detail Pesanan ke Admin</button>
       <div class="payment-box" style="margin-top:16px;">
         <h4>💳 Transfer DP/Pelunasan ke</h4>
         <div class="bank-row">
