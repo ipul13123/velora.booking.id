@@ -364,8 +364,40 @@
   .stock-input-item .stock-ctrl button:hover { background:var(--pink-light); }
   .stock-input-item .stock-val { flex:1;text-align:center;font-size:1.3rem;font-weight:700;color:var(--dark); }
 
-  /* responsive */
-  @media(max-width:640px){
+  /* ── FLOATING WHATSAPP ── */
+  .wa-float {
+    position: fixed;
+    bottom: 28px;
+    right: 28px;
+    z-index: 998;
+    width: 58px;
+    height: 58px;
+    background: #25d366;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 6px 24px rgba(37,211,102,0.45);
+    cursor: pointer;
+    transition: transform .25s, box-shadow .25s;
+    text-decoration: none;
+  }
+  .wa-float:hover { transform: translateY(-3px) scale(1.05); box-shadow: 0 10px 32px rgba(37,211,102,0.55); }
+  .wa-float svg { width: 32px; height: 32px; fill: white; }
+  .wa-float-tooltip {
+    position: absolute;
+    right: 68px;
+    background: #2d1f2e;
+    color: white;
+    font-size: .78rem;
+    padding: 6px 12px;
+    border-radius: 8px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s;
+  }
+  .wa-float:hover .wa-float-tooltip { opacity: 1; }
     nav { padding:0 16px; }
     .nav-links .nav-btn span { display:none; }
     table { font-size:.75rem; }
@@ -397,6 +429,14 @@
     <button onclick="closeModal()" class="btn btn-outline" style="margin-top:12px;width:100%">Tutup</button>
   </div>
 </div>
+
+<!-- FLOATING WHATSAPP BUTTON -->
+<a class="wa-float" onclick="openWhatsAppAdmin('Halo Admin Velora, saya ingin bertanya tentang sewa papan ucapan.')" title="Hubungi Admin via WhatsApp">
+  <span class="wa-float-tooltip">Hubungi Admin</span>
+  <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+  </svg>
+</a>
 
 <!-- TOAST -->
 <div id="toast"></div>
@@ -450,6 +490,11 @@
         <div style="font-size:.82rem;color:var(--muted);">Bentuk arch klasik yang timeless dan elegan</div>
       </div>
       <div style="background:var(--white);border-radius:20px;padding:28px 20px;text-align:center;box-shadow:var(--shadow);">
+        <div style="font-size:2.4rem;margin-bottom:12px;">🎀</div>
+        <div style="font-family:'Playfair Display',serif;font-size:1rem;margin-bottom:6px;">Papan Gantung</div>
+        <div style="font-size:.82rem;color:var(--muted);">Papan cantik dengan gantungan bunga; tersedia warna pink & merah</div>
+      </div>
+      <div style="background:var(--white);border-radius:20px;padding:28px 20px;text-align:center;box-shadow:var(--shadow);">
         <div style="font-size:2.4rem;margin-bottom:12px;">🌸</div>
         <div style="font-family:'Playfair Display',serif;font-size:1rem;margin-bottom:6px;">Free Request</div>
         <div style="font-size:.82rem;color:var(--muted);">Bebas request model & warna bunga favoritmu</div>
@@ -467,13 +512,14 @@
             <th>Convex</th>
             <th>Papan Bulat</th>
             <th>Papan Kubah</th>
+            <th>Papan Gantung</th>
           </tr>
         </thead>
-        <tbody>
-          <tr><td>Sidang</td><td style="color:var(--pink-deep);font-weight:600">Rp 85.000</td><td style="color:var(--pink-deep);font-weight:600">Rp 60.000</td><td style="color:var(--pink-deep);font-weight:600">Rp 55.000</td></tr>
-          <tr><td>Wedding</td><td style="color:var(--pink-deep);font-weight:600">Rp 100.000</td><td style="color:var(--pink-deep);font-weight:600">Rp 65.000</td><td style="color:var(--pink-deep);font-weight:600">Rp 60.000</td></tr>
-          <tr><td>Lamaran</td><td style="color:var(--pink-deep);font-weight:600">Rp 100.000</td><td style="color:var(--pink-deep);font-weight:600">Rp 65.000</td><td style="color:var(--pink-deep);font-weight:600">Rp 60.000</td></tr>
-          <tr><td>Event</td><td style="color:var(--pink-deep);font-weight:600">Rp 100.000</td><td style="color:var(--pink-deep);font-weight:600">Rp 65.000</td><td style="color:var(--pink-deep);font-weight:600">Rp 60.000</td></tr>
+        <tbody id="price-tbody">
+          <tr><td>Sidang</td><td style="color:var(--pink-deep);font-weight:600">Rp 85.000</td><td style="color:var(--pink-deep);font-weight:600">Rp 60.000</td><td style="color:var(--pink-deep);font-weight:600">Rp 55.000</td><td style="color:var(--pink-deep);font-weight:600">Rp 85.000</td></tr>
+          <tr><td>Wedding</td><td style="color:var(--pink-deep);font-weight:600">Rp 100.000</td><td style="color:var(--pink-deep);font-weight:600">Rp 65.000</td><td style="color:var(--pink-deep);font-weight:600">Rp 60.000</td><td style="color:var(--pink-deep);font-weight:600">Rp 100.000</td></tr>
+          <tr><td>Lamaran</td><td style="color:var(--pink-deep);font-weight:600">Rp 100.000</td><td style="color:var(--pink-deep);font-weight:600">Rp 65.000</td><td style="color:var(--pink-deep);font-weight:600">Rp 60.000</td><td style="color:var(--pink-deep);font-weight:600">Rp 100.000</td></tr>
+          <tr><td>Event</td><td style="color:var(--pink-deep);font-weight:600">Rp 100.000</td><td style="color:var(--pink-deep);font-weight:600">Rp 65.000</td><td style="color:var(--pink-deep);font-weight:600">Rp 60.000</td><td style="color:var(--pink-deep);font-weight:600">Rp 100.000</td></tr>
         </tbody>
       </table>
     </div>
@@ -506,9 +552,16 @@
         <img src="assets/foto5.jpeg" alt="Multiple Boards">
         <div class="caption">Koleksi Lengkap · Berbagai Model</div>
       </div>
+      <div class="gallery-card">
+        <img src="assets/foto6.jpeg" alt="Papan Gantung">
+        <div class="caption">Papan Gantung 🎀 · Pink & Merah · Tersedia</div>
+      </div>
     </div>
     <div class="note-box" style="margin-top:28px;max-width:480px;margin-left:auto;margin-right:auto;">
       📸 <strong>Ingin model tertentu?</strong> Lihat koleksi lengkap di <strong>@velora.id</strong>, screenshot model yang disukai & kirim ke admin. <strong>Free request!</strong>
+    </div>
+    <div class="note-box" style="margin-top:12px;max-width:480px;margin-left:auto;margin-right:auto;background:#fff0f4;border-color:#e87fa0;">
+      🎀 <strong>Papan Gantung:</strong> Untuk papan gantung, warna bunga yang tersedia hanya <strong>Pink</strong> dan <strong>Merah</strong>.
     </div>
   </div>
 </div>
@@ -595,13 +648,14 @@
         </div>
         <div class="form-group">
           <label>Warna Bunga <span class="req">*</span></label>
-          <select id="f-warna">
+          <select id="f-warna" onchange="checkWarnaGantung()">
             <option value="">Pilih warna...</option>
             <option>Pink</option>
             <option>Merah</option>
             <option>Biru</option>
             <option>Coklat/Cream</option>
           </select>
+          <div id="warna-gantung-note" style="display:none;font-size:.78rem;color:var(--pink-deep);margin-top:4px;">⚠️ Papan Gantung hanya tersedia warna <strong>Pink</strong> dan <strong>Merah</strong></div>
         </div>
         <div class="form-group">
           <label>Kebutuhan Acara <span class="req">*</span></label>
@@ -615,11 +669,12 @@
         </div>
         <div class="form-group full">
           <label>Jenis Papan <span class="req">*</span></label>
-          <select id="f-papan" onchange="updatePrice()">
+          <select id="f-papan" onchange="updatePrice(); checkWarnaGantung()">
             <option value="">Pilih jenis papan...</option>
             <option value="Convex">Convex Mirror</option>
             <option value="Papan Bulat">Papan Bulat</option>
             <option value="Papan Kubah">Papan Kubah</option>
+            <option value="Papan Gantung">Papan Gantung 🎀 (Bunga: Pink & Merah only)</option>
           </select>
         </div>
         <div class="form-group full" id="price-group" style="display:none">
@@ -712,6 +767,14 @@
         <input type="date" id="block-date-input" style="flex:1;">
         <button class="btn btn-pink" onclick="addBlockedDate()">+ Block Tanggal</button>
       </div>
+    </div>
+
+    <!-- Price Manager -->
+    <div class="stock-mgr" style="margin-top:24px;">
+      <h3>💰 Kelola Harga Sewa</h3>
+      <p style="font-size:.83rem;color:var(--muted);margin-bottom:16px;">Ubah harga sewa untuk setiap jenis papan dan acara. Perubahan langsung diterapkan ke halaman pelanggan.</p>
+      <div id="price-input-wrap"></div>
+      <button class="btn btn-pink" style="margin-top:8px;font-size:.85rem;" onclick="savePrices()">💾 Simpan Harga</button>
     </div>
 
     <!-- Stock Manager -->

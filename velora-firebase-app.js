@@ -17,18 +17,21 @@ const ordersRef = db.collection('orders');
 const usageRef = db.collection('usage');
 const ADMIN_WHATSAPP = '6285717835248';
 
-const PRICE_MAP = {
-  'Sidang': { 'Convex': 85000, 'Papan Bulat': 60000, 'Papan Kubah': 55000 },
-  'Wedding': { 'Convex': 100000, 'Papan Bulat': 65000, 'Papan Kubah': 60000 },
-  'Lamaran': { 'Convex': 100000, 'Papan Bulat': 65000, 'Papan Kubah': 60000 },
-  'Event': { 'Convex': 100000, 'Papan Bulat': 65000, 'Papan Kubah': 60000 }
+const DEFAULT_PRICE_MAP = {
+  'Sidang': { 'Convex': 85000, 'Papan Bulat': 60000, 'Papan Kubah': 55000, 'Papan Gantung': 85000 },
+  'Wedding': { 'Convex': 100000, 'Papan Bulat': 65000, 'Papan Kubah': 60000, 'Papan Gantung': 100000 },
+  'Lamaran': { 'Convex': 100000, 'Papan Bulat': 65000, 'Papan Kubah': 60000, 'Papan Gantung': 100000 },
+  'Event': { 'Convex': 100000, 'Papan Bulat': 65000, 'Papan Kubah': 60000, 'Papan Gantung': 100000 }
 };
+let PRICE_MAP = JSON.parse(JSON.stringify(DEFAULT_PRICE_MAP));
 const PAPAN_TYPES = [
   { key:'Convex', label:'Convex Mirror', icon:'🪞' },
   { key:'Papan Bulat', label:'Papan Bulat', icon:'⭕' },
-  { key:'Papan Kubah', label:'Papan Kubah', icon:'🏛️' }
+  { key:'Papan Kubah', label:'Papan Kubah', icon:'🏛️' },
+  { key:'Papan Gantung', label:'Papan Gantung', icon:'🎀' }
 ];
-const DEFAULT_STOCK = { 'Convex':2, 'Papan Bulat':2, 'Papan Kubah':2 };
+const DEFAULT_STOCK = { 'Convex':2, 'Papan Bulat':2, 'Papan Kubah':2, 'Papan Gantung':2 };
+const priceRef = db.collection('settings').doc('prices');
 let orders = [], blockedDates = [], stockTotal = { ...DEFAULT_STOCK }, usageByDate = {};
 let isAdmin = false, ordersUnsub = null;
 const today = new Date();
@@ -45,6 +48,7 @@ function createdLabel(o){ return o.createdAt?.toDate ? o.createdAt.toDate().toLo
 
 function startRealtimeData(){
   if(!firebaseReady()){ toast('Isi konfigurasi Firebase dulu di file HTML.'); return; }
+  priceRef.onSnapshot(async d=>{ if(d.exists&&d.data().map){ const saved=d.data().map; Object.keys(DEFAULT_PRICE_MAP).forEach(acara=>{ PRICE_MAP[acara]={}; Object.keys(DEFAULT_PRICE_MAP[acara]).forEach(p=>{ PRICE_MAP[acara][p]=(saved[acara]&&saved[acara][p]!=null)?saved[acara][p]:DEFAULT_PRICE_MAP[acara][p]; }); }); } else { PRICE_MAP=JSON.parse(JSON.stringify(DEFAULT_PRICE_MAP)); } refresh(); updatePriceTable(); }, err);
   stockRef.onSnapshot(async d=>{ if(d.exists&&d.data().items) stockTotal={...DEFAULT_STOCK,...d.data().items}; else await stockRef.set({items:DEFAULT_STOCK,updatedAt:firebase.firestore.FieldValue.serverTimestamp()}); refresh(); }, err);
   blockedRef.onSnapshot(async d=>{ if(d.exists&&Array.isArray(d.data().dates)) blockedDates=d.data().dates; else await blockedRef.set({dates:[]}); refresh(); }, err);
   usageRef.onSnapshot(s=>{ usageByDate={}; s.forEach(d=>usageByDate[d.id]=d.data().counts||{}); refresh(); }, err);
@@ -114,6 +118,7 @@ function checkDate(dateStr){
   document.getElementById('cek-stock-grid').innerHTML=PAPAN_TYPES.map(p=>{ const s=stock[p.key], total=stockTotal[p.key]||0; let cls='stock-card', text=''; if(blocked){cls+=' full';text='Tidak Tersedia';} else if(s===0){cls+=' full';text='Habis';} else if(s<=1){cls+=' low';text='Hampir Habis';} else {cls+=' ready';text='Tersedia';} return `<div class="${cls}"><div class="papan-icon">${p.icon}</div><div class="papan-name">${p.label}</div><div class="stock-num">${blocked?0:s}</div><div class="stock-lbl">${text}</div><div class="stock-of">dari ${total} unit</div></div>`; }).join('');
   document.getElementById('f-tgl').value=dateStr;
 }
+function checkWarnaGantung(){ const papan=document.getElementById('f-papan')?.value, warna=document.getElementById('f-warna')?.value, note=document.getElementById('warna-gantung-note'); if(!note)return; if(papan==='Papan Gantung'){ note.style.display='block'; if(warna&&warna!=='Pink'&&warna!=='Merah'){ document.getElementById('f-warna').value=''; toast('Papan Gantung hanya tersedia warna Pink dan Merah'); } } else note.style.display='none'; }
 function updatePrice(){ const a=document.getElementById('f-acara').value, p=document.getElementById('f-papan').value, g=document.getElementById('price-group'); if(a&&p&&PRICE_MAP[a]?.[p]){ document.getElementById('price-show').innerHTML=`<span>Rp </span>${PRICE_MAP[a][p].toLocaleString('id-ID')}`; g.style.display='block'; } else g.style.display='none'; }
 function getWhatsAppLink(message){
   return `https://wa.me/${ADMIN_WHATSAPP}?text=${encodeURIComponent(message)}`;
@@ -175,10 +180,26 @@ async function submitOrder(){
   setTimeout(()=>window.open(waLink,'_blank'), 350);
 }
 
-function renderAdmin(){
+function updatePriceTable(){
+  const tbody=document.getElementById('price-tbody'); if(!tbody)return;
+  const acara=['Sidang','Wedding','Lamaran','Event'];
+  tbody.innerHTML=acara.map(a=>`<tr><td>${a}</td><td style="color:var(--pink-deep);font-weight:600">Rp ${(PRICE_MAP[a]?.Convex||0).toLocaleString('id-ID')}</td><td style="color:var(--pink-deep);font-weight:600">Rp ${(PRICE_MAP[a]?.['Papan Bulat']||0).toLocaleString('id-ID')}</td><td style="color:var(--pink-deep);font-weight:600">Rp ${(PRICE_MAP[a]?.['Papan Kubah']||0).toLocaleString('id-ID')}</td><td style="color:var(--pink-deep);font-weight:600">Rp ${(PRICE_MAP[a]?.['Papan Gantung']||0).toLocaleString('id-ID')}</td></tr>`).join('');
+}
+function renderPriceInputs(){
+  const wrap=document.getElementById('price-input-wrap'); if(!wrap)return;
+  const acara=['Sidang','Wedding','Lamaran','Event'], papan=['Convex','Papan Bulat','Papan Kubah','Papan Gantung'];
+  wrap.innerHTML=acara.map(a=>`<div style="background:var(--pink-pale);border-radius:14px;padding:16px;margin-bottom:12px;"><div style="font-family:'Playfair Display',serif;font-weight:600;color:var(--dark);margin-bottom:12px;">${a}</div><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;">${papan.map(p=>`<div><label style="font-size:.75rem;color:var(--muted);display:block;margin-bottom:4px;">${p}</label><div style="display:flex;align-items:center;gap:4px;"><span style="font-size:.8rem;color:var(--muted);">Rp</span><input type="number" id="pi-${a.replace(/\s/g,'-')}-${p.replace(/\s/g,'-')}" value="${PRICE_MAP[a]?.[p]||0}" style="width:100%;padding:7px 8px;border-radius:8px;border:1.5px solid #e8d5e8;font-size:.85rem;background:white;"></div></div>`).join('')}</div></div>`).join('');
+}
+async function savePrices(){
+  const acara=['Sidang','Wedding','Lamaran','Event'], papan=['Convex','Papan Bulat','Papan Kubah','Papan Gantung'];
+  const map={};
+  acara.forEach(a=>{ map[a]={}; papan.forEach(p=>{ const el=document.getElementById(`pi-${a.replace(/\s/g,'-')}-${p.replace(/\s/g,'-')}`); map[a][p]=el?Math.max(0,parseInt(el.value)||0):DEFAULT_PRICE_MAP[a][p]; }); });
+  await priceRef.set({map,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+  toast('Harga berhasil disimpan!');
+}
   const total=orders.length,pending=orders.filter(o=>o.status==='Pending').length,dp=orders.filter(o=>o.status==='DP').length,lunas=orders.filter(o=>o.status==='Lunas').length,revenue=orders.filter(o=>o.status!=='Batal').reduce((a,o)=>a+(Number(o.harga)||0),0);
   document.getElementById('stats-row').innerHTML=`<div class="stat-card"><div class="num">${total}</div><div class="lbl">Total Pesanan</div></div><div class="stat-card"><div class="num" style="color:#856404">${pending}</div><div class="lbl">Pending</div></div><div class="stat-card"><div class="num" style="color:#084298">${dp}</div><div class="lbl">Sudah DP</div></div><div class="stat-card"><div class="num" style="color:#0a3622">${lunas}</div><div class="lbl">Lunas</div></div><div class="stat-card"><div class="num" style="font-size:1.2rem;color:var(--pink-deep)">Rp ${(revenue/1000).toFixed(0)}rb</div><div class="lbl">Total Revenue</div></div>`;
-  renderBlockedList(); renderStockInputs(); renderTable();
+  renderBlockedList(); renderStockInputs(); renderPriceInputs(); renderTable();
 }
 function renderTable(){
   const filter=document.getElementById('filter-status').value, filtered=filter?orders.filter(o=>o.status===filter):[...orders]; filtered.sort((a,b)=>orderMillis(b)-orderMillis(a));
