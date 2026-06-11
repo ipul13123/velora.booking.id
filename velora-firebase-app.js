@@ -13,23 +13,26 @@ const auth = firebase.auth();
 const db = firebase.firestore();
 const stockRef = db.collection('settings').doc('stock');
 const blockedRef = db.collection('settings').doc('blocked');
+const priceRef = db.collection('settings').doc('prices');
 const ordersRef = db.collection('orders');
 const usageRef = db.collection('usage');
 const ADMIN_WHATSAPP = '6285717835248';
 
-const PRICE_MAP = {
-  'Sidang': { 'Convex': 85000, 'Papan Bulat': 60000, 'Papan Kubah': 55000 },
-  'Wedding': { 'Convex': 100000, 'Papan Bulat': 65000, 'Papan Kubah': 60000 },
-  'Lamaran': { 'Convex': 100000, 'Papan Bulat': 65000, 'Papan Kubah': 60000 },
-  'Event': { 'Convex': 100000, 'Papan Bulat': 65000, 'Papan Kubah': 60000 }
+const EVENT_TYPES = ['Sidang', 'Wedding', 'Lamaran', 'Event'];
+const DEFAULT_PRICE_MAP = {
+  'Sidang': { 'Convex': 85000, 'Papan Bulat': 60000, 'Papan Kubah': 55000, 'Papan Gantung': 85000 },
+  'Wedding': { 'Convex': 100000, 'Papan Bulat': 65000, 'Papan Kubah': 60000, 'Papan Gantung': 100000 },
+  'Lamaran': { 'Convex': 100000, 'Papan Bulat': 65000, 'Papan Kubah': 60000, 'Papan Gantung': 100000 },
+  'Event': { 'Convex': 100000, 'Papan Bulat': 65000, 'Papan Kubah': 60000, 'Papan Gantung': 100000 }
 };
 const PAPAN_TYPES = [
   { key:'Convex', label:'Convex Mirror', icon:'🪞' },
   { key:'Papan Bulat', label:'Papan Bulat', icon:'⭕' },
-  { key:'Papan Kubah', label:'Papan Kubah', icon:'🏛️' }
+  { key:'Papan Kubah', label:'Papan Kubah', icon:'🏛️' },
+  { key:'Papan Gantung', label:'Papan Gantung', icon:'🪷' }
 ];
-const DEFAULT_STOCK = { 'Convex':2, 'Papan Bulat':2, 'Papan Kubah':2 };
-let orders = [], blockedDates = [], stockTotal = { ...DEFAULT_STOCK }, usageByDate = {};
+const DEFAULT_STOCK = { 'Convex':2, 'Papan Bulat':2, 'Papan Kubah':2, 'Papan Gantung':1 };
+let orders = [], blockedDates = [], stockTotal = { ...DEFAULT_STOCK }, usageByDate = {}, priceMap = JSON.parse(JSON.stringify(DEFAULT_PRICE_MAP));
 let isAdmin = false, ordersUnsub = null;
 const today = new Date();
 let calYear = today.getFullYear(), calMonth = today.getMonth();
@@ -37,7 +40,14 @@ let calYear = today.getFullYear(), calMonth = today.getMonth();
 function firebaseReady(){ return firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith('ISI_'); }
 function toast(msg){ const el=document.getElementById('toast'); if(!el) return alert(msg); el.textContent=msg; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),2800); }
 function err(e){ console.error(e); toast('Firebase belum siap atau izin database ditolak. Cek config dan rules.'); }
-function refresh(){ const a=document.querySelector('.page.active'); if(!a) return; if(a.id==='page-cek') renderCalendar(); if(a.id==='page-admin'&&isAdmin) renderAdmin(); }
+function mergePriceMap(source={}){
+  const merged = JSON.parse(JSON.stringify(DEFAULT_PRICE_MAP));
+  EVENT_TYPES.forEach(event => {
+    merged[event] = { ...merged[event], ...(source[event] || {}) };
+  });
+  return merged;
+}
+function refresh(){ const a=document.querySelector('.page.active'); renderPriceTable(); updatePrice(); if(!a) return; if(a.id==='page-cek') renderCalendar(); if(a.id==='page-admin'&&isAdmin) renderAdmin(); }
 function toDateStr(date){ return date.getFullYear()+'-'+String(date.getMonth()+1).padStart(2,'0')+'-'+String(date.getDate()).padStart(2,'0'); }
 function formatDate(d){ return d ? new Date(d+'T00:00:00').toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'}) : '-'; }
 function orderMillis(o){ return o.createdAt?.toDate ? o.createdAt.toDate().getTime() : (o.createdAtText ? new Date(o.createdAtText).getTime() : 0); }
@@ -47,6 +57,7 @@ function startRealtimeData(){
   if(!firebaseReady()){ toast('Isi konfigurasi Firebase dulu di file HTML.'); return; }
   stockRef.onSnapshot(async d=>{ if(d.exists&&d.data().items) stockTotal={...DEFAULT_STOCK,...d.data().items}; else await stockRef.set({items:DEFAULT_STOCK,updatedAt:firebase.firestore.FieldValue.serverTimestamp()}); refresh(); }, err);
   blockedRef.onSnapshot(async d=>{ if(d.exists&&Array.isArray(d.data().dates)) blockedDates=d.data().dates; else await blockedRef.set({dates:[]}); refresh(); }, err);
+  priceRef.onSnapshot(d=>{ priceMap=d.exists&&d.data().items ? mergePriceMap(d.data().items) : mergePriceMap(); refresh(); }, err);
   usageRef.onSnapshot(s=>{ usageByDate={}; s.forEach(d=>usageByDate[d.id]=d.data().counts||{}); refresh(); }, err);
 }
 function listenAdminOrders(){
@@ -114,7 +125,28 @@ function checkDate(dateStr){
   document.getElementById('cek-stock-grid').innerHTML=PAPAN_TYPES.map(p=>{ const s=stock[p.key], total=stockTotal[p.key]||0; let cls='stock-card', text=''; if(blocked){cls+=' full';text='Tidak Tersedia';} else if(s===0){cls+=' full';text='Habis';} else if(s<=1){cls+=' low';text='Hampir Habis';} else {cls+=' ready';text='Tersedia';} return `<div class="${cls}"><div class="papan-icon">${p.icon}</div><div class="papan-name">${p.label}</div><div class="stock-num">${blocked?0:s}</div><div class="stock-lbl">${text}</div><div class="stock-of">dari ${total} unit</div></div>`; }).join('');
   document.getElementById('f-tgl').value=dateStr;
 }
-function updatePrice(){ const a=document.getElementById('f-acara').value, p=document.getElementById('f-papan').value, g=document.getElementById('price-group'); if(a&&p&&PRICE_MAP[a]?.[p]){ document.getElementById('price-show').innerHTML=`<span>Rp </span>${PRICE_MAP[a][p].toLocaleString('id-ID')}`; g.style.display='block'; } else g.style.display='none'; }
+function renderPriceTable(){
+  const tbody = document.getElementById('price-table-body');
+  if(!tbody) return;
+  tbody.innerHTML = EVENT_TYPES.map(event => `<tr><td>${event}</td>${PAPAN_TYPES.map(p => `<td style="color:var(--pink-deep);font-weight:600">Rp ${(priceMap[event]?.[p.key] || 0).toLocaleString('id-ID')}</td>`).join('')}</tr>`).join('');
+}
+function updateColorOptions(){
+  const papan = document.getElementById('f-papan')?.value;
+  const warna = document.getElementById('f-warna');
+  if(!warna) return;
+  const current = warna.value;
+  const options = papan === 'Papan Gantung'
+    ? ['', 'Pink', 'Merah']
+    : ['', 'Pink', 'Merah', 'Biru', 'Coklat/Cream'];
+  warna.innerHTML = options.map(v => `<option value="${v}">${v || 'Pilih warna...'}</option>`).join('');
+  warna.value = options.includes(current) ? current : '';
+}
+function handleBoardChange(){
+  updateColorOptions();
+  updatePrice();
+  if(document.getElementById('f-papan').value === 'Papan Gantung') toast('Papan Gantung hanya ready bunga Pink dan Merah.');
+}
+function updatePrice(){ const a=document.getElementById('f-acara').value, p=document.getElementById('f-papan').value, g=document.getElementById('price-group'); if(a&&p&&priceMap[a]?.[p]){ document.getElementById('price-show').innerHTML=`<span>Rp </span>${priceMap[a][p].toLocaleString('id-ID')}`; g.style.display='block'; } else g.style.display='none'; }
 function getWhatsAppLink(message){
   return `https://wa.me/${ADMIN_WHATSAPP}?text=${encodeURIComponent(message)}`;
 }
@@ -146,7 +178,8 @@ async function submitOrder(){
   if(!firebaseReady()){toast('Isi konfigurasi Firebase dulu.');return;}
   const fields=[['f-nama','Nama Penyewa'],['f-hp','No. HP'],['f-id','Identitas'],['f-tgl','Tanggal Sewa'],['f-jam','Jam'],['f-durasi','Durasi'],['f-lokasi','Lokasi'],['f-warna','Warna Bunga'],['f-acara','Kebutuhan Acara'],['f-papan','Jenis Papan'],['f-ucapan','Ucapan']];
   for(const [id,lbl] of fields){ const el=document.getElementById(id); if(!el||!el.value.trim()){toast('Mohon isi: '+lbl); if(el)el.focus(); return;} }
-  const tanggal=document.getElementById('f-tgl').value, papan=document.getElementById('f-papan').value, acara=document.getElementById('f-acara').value, harga=PRICE_MAP[acara]?.[papan]||0;
+  const tanggal=document.getElementById('f-tgl').value, papan=document.getElementById('f-papan').value, acara=document.getElementById('f-acara').value, warna=document.getElementById('f-warna').value, harga=priceMap[acara]?.[papan]||0;
+  if(papan === 'Papan Gantung' && !['Pink','Merah'].includes(warna)){ toast('Papan Gantung hanya tersedia bunga Pink dan Merah.'); return; }
   const order={nama:document.getElementById('f-nama').value.trim(),hp:document.getElementById('f-hp').value.trim(),identitas:document.getElementById('f-id').value,tanggal,jam:document.getElementById('f-jam').value,durasi:document.getElementById('f-durasi').value,lokasi:document.getElementById('f-lokasi').value.trim(),warna:document.getElementById('f-warna').value,acara,papan,harga,ucapan:document.getElementById('f-ucapan').value.trim(),status:'Pending',createdAt:firebase.firestore.FieldValue.serverTimestamp(),createdAtText:new Date().toISOString()};
   const newOrder=ordersRef.doc();
   try{
@@ -178,7 +211,7 @@ async function submitOrder(){
 function renderAdmin(){
   const total=orders.length,pending=orders.filter(o=>o.status==='Pending').length,dp=orders.filter(o=>o.status==='DP').length,lunas=orders.filter(o=>o.status==='Lunas').length,revenue=orders.filter(o=>o.status!=='Batal').reduce((a,o)=>a+(Number(o.harga)||0),0);
   document.getElementById('stats-row').innerHTML=`<div class="stat-card"><div class="num">${total}</div><div class="lbl">Total Pesanan</div></div><div class="stat-card"><div class="num" style="color:#856404">${pending}</div><div class="lbl">Pending</div></div><div class="stat-card"><div class="num" style="color:#084298">${dp}</div><div class="lbl">Sudah DP</div></div><div class="stat-card"><div class="num" style="color:#0a3622">${lunas}</div><div class="lbl">Lunas</div></div><div class="stat-card"><div class="num" style="font-size:1.2rem;color:var(--pink-deep)">Rp ${(revenue/1000).toFixed(0)}rb</div><div class="lbl">Total Revenue</div></div>`;
-  renderBlockedList(); renderStockInputs(); renderTable();
+  renderBlockedList(); renderStockInputs(); renderPriceInputs(); renderTable();
 }
 function renderTable(){
   const filter=document.getElementById('filter-status').value, filtered=filter?orders.filter(o=>o.status===filter):[...orders]; filtered.sort((a,b)=>orderMillis(b)-orderMillis(a));
@@ -199,6 +232,27 @@ function renderBlockedList(){ const list=document.getElementById('blocked-list-d
 function renderStockInputs(){ const row=document.getElementById('stock-input-row'); if(!row)return; row.innerHTML=PAPAN_TYPES.map(p=>`<div class="stock-input-item"><label>${p.icon} ${p.label}</label><div class="stock-ctrl"><button onclick="changeStock('${p.key}', -1)">−</button><span class="stock-val" id="sv-${p.key.replace(' ','-')}">${stockTotal[p.key]||0}</span><button onclick="changeStock('${p.key}', 1)">+</button></div></div>`).join(''); }
 function changeStock(key,delta){ stockTotal[key]=Math.max(0,(stockTotal[key]||0)+delta); const el=document.getElementById('sv-'+key.replace(' ','-')); if(el)el.textContent=stockTotal[key]; }
 async function saveStock(){ await stockRef.set({items:stockTotal,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}); toast('Stok berhasil disimpan!'); }
+function priceInputId(event, papan){ return `price-${event}-${papan}`.replace(/[^a-zA-Z0-9_-]/g,'-'); }
+function renderPriceInputs(){
+  const grid=document.getElementById('price-admin-grid');
+  if(!grid) return;
+  grid.innerHTML=EVENT_TYPES.map(event => PAPAN_TYPES.map(p => {
+    const id=priceInputId(event,p.key);
+    return `<div class="price-admin-item"><label>${event} - ${p.label}</label><input id="${id}" type="number" min="0" step="1000" value="${priceMap[event]?.[p.key] || 0}"></div>`;
+  }).join('')).join('');
+}
+async function savePrices(){
+  const next=mergePriceMap(priceMap);
+  EVENT_TYPES.forEach(event => PAPAN_TYPES.forEach(p => {
+    const el=document.getElementById(priceInputId(event,p.key));
+    next[event][p.key]=Math.max(0, Number(el?.value || 0));
+  }));
+  priceMap=next;
+  await priceRef.set({items:priceMap,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+  renderPriceTable();
+  updatePrice();
+  toast('Harga berhasil disimpan!');
+}
 async function addBlockedDate(){ const d=document.getElementById('block-date-input').value; if(!d){toast('Pilih tanggal dulu');return;} if(!blockedDates.includes(d)){ await blockedRef.set({dates:[...blockedDates,d].sort()},{merge:true}); toast(formatDate(d)+' sudah diblocked'); } else toast('Tanggal sudah diblocked'); document.getElementById('block-date-input').value=''; }
 async function removeBlock(d){ await blockedRef.set({dates:blockedDates.filter(x=>x!==d)},{merge:true}); toast('Block dihapus: '+formatDate(d)); }
 function exportCSV(){ if(!orders.length){toast('Belum ada pesanan');return;} const header=['ID','Nama','HP','Identitas','Tanggal','Jam','Durasi','Lokasi','Warna','Acara','Papan','Harga','Ucapan','Status','Dibuat']; const rows=orders.map(o=>[o.id,o.nama,o.hp,o.identitas,o.tanggal,o.jam,o.durasi,'"'+o.lokasi+'"',o.warna,o.acara,o.papan,o.harga,'"'+String(o.ucapan||'').replace(/"/g,"'")+'"',o.status,createdLabel(o)]); const csv=[header,...rows].map(r=>r.join(',')).join('\n'); const a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv); a.download='velora_pesanan_'+new Date().toISOString().slice(0,10)+'.csv'; a.click(); toast('CSV berhasil diexport'); }
@@ -206,6 +260,8 @@ function copyText(text){ navigator.clipboard.writeText(text).catch(()=>{}); toas
 
 document.getElementById('admin-pass-input').addEventListener('keydown',e=>{if(e.key==='Enter')checkAdminLogin();});
 document.getElementById('admin-email-input').addEventListener('keydown',e=>{if(e.key==='Enter')checkAdminLogin();});
+renderPriceTable();
+updateColorOptions();
 startRealtimeData();
 renderCalendar();
 

@@ -237,6 +237,20 @@
   }
   .bank-row .bank-info .bank-name { font-weight:600; font-size:.9rem; color:var(--gold-light); }
   .bank-row .bank-info .account { font-size:.82rem; color:rgba(255,255,255,0.7); margin-top:2px; }
+  .qris-box {
+    background:rgba(255,255,255,0.08);
+    border-radius:14px;
+    padding:16px;
+    text-align:center;
+  }
+  .qris-img {
+    width:min(100%, 320px);
+    border-radius:12px;
+    background:white;
+    padding:8px;
+    display:block;
+    margin:0 auto 12px;
+  }
   .copy-btn {
     background:rgba(201,169,110,0.2); border:1px solid rgba(201,169,110,0.4);
     color:var(--gold-light); border-radius:8px; padding:6px 12px;
@@ -245,6 +259,15 @@
   .copy-btn:hover { background:rgba(201,169,110,0.35); }
   .payment-nb { font-size:.8rem; color:rgba(255,255,255,0.55); margin-top:12px; line-height:1.6; }
   .payment-nb strong { color:var(--pink); }
+  .floating-wa {
+    position:fixed; right:22px; bottom:22px; z-index:900;
+    width:56px; height:56px; border-radius:50%;
+    background:#25d366; color:white; border:none; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    font-size:1.65rem; box-shadow:0 10px 28px rgba(37,211,102,0.36);
+    transition:transform .2s, box-shadow .2s;
+  }
+  .floating-wa:hover { transform:translateY(-2px) scale(1.03); box-shadow:0 14px 34px rgba(37,211,102,0.44); }
 
   .note-box {
     background:var(--pink-light); border-radius:12px; padding:14px 18px;
@@ -363,6 +386,10 @@
   .stock-input-item .stock-ctrl button { width:32px;height:32px;border-radius:8px;border:1.5px solid #e8d5e8;background:white;cursor:pointer;font-size:1.1rem;color:var(--dark); font-weight:700; display:flex;align-items:center;justify-content:center; }
   .stock-input-item .stock-ctrl button:hover { background:var(--pink-light); }
   .stock-input-item .stock-val { flex:1;text-align:center;font-size:1.3rem;font-weight:700;color:var(--dark); }
+  .price-admin-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:14px; }
+  .price-admin-item { background:var(--pink-pale); border-radius:12px; padding:14px 16px; }
+  .price-admin-item label { display:block; margin-bottom:8px; font-size:.8rem; font-weight:600; }
+  .price-admin-item input { width:100%; background:white; }
 
   /* responsive */
   @media(max-width:640px){
@@ -400,6 +427,8 @@
 
 <!-- TOAST -->
 <div id="toast"></div>
+
+<button class="floating-wa" onclick="openWhatsAppAdmin('Halo Admin Velora, saya ingin bertanya tentang sewa papan ucapan.')" title="Hubungi Admin WhatsApp">💬</button>
 
 <!-- NAVBAR -->
 <nav>
@@ -467,14 +496,10 @@
             <th>Convex</th>
             <th>Papan Bulat</th>
             <th>Papan Kubah</th>
+            <th>Papan Gantung</th>
           </tr>
         </thead>
-        <tbody>
-          <tr><td>Sidang</td><td style="color:var(--pink-deep);font-weight:600">Rp 85.000</td><td style="color:var(--pink-deep);font-weight:600">Rp 60.000</td><td style="color:var(--pink-deep);font-weight:600">Rp 55.000</td></tr>
-          <tr><td>Wedding</td><td style="color:var(--pink-deep);font-weight:600">Rp 100.000</td><td style="color:var(--pink-deep);font-weight:600">Rp 65.000</td><td style="color:var(--pink-deep);font-weight:600">Rp 60.000</td></tr>
-          <tr><td>Lamaran</td><td style="color:var(--pink-deep);font-weight:600">Rp 100.000</td><td style="color:var(--pink-deep);font-weight:600">Rp 65.000</td><td style="color:var(--pink-deep);font-weight:600">Rp 60.000</td></tr>
-          <tr><td>Event</td><td style="color:var(--pink-deep);font-weight:600">Rp 100.000</td><td style="color:var(--pink-deep);font-weight:600">Rp 65.000</td><td style="color:var(--pink-deep);font-weight:600">Rp 60.000</td></tr>
-        </tbody>
+        <tbody id="price-table-body"></tbody>
       </table>
     </div>
   </div>
@@ -505,6 +530,10 @@
       <div class="gallery-card">
         <img src="assets/foto5.jpeg" alt="Multiple Boards">
         <div class="caption">Koleksi Lengkap · Berbagai Model</div>
+      </div>
+      <div class="gallery-card">
+        <img src="assets/foto6.jpeg" alt="Papan Gantung">
+        <div class="caption">Papan Gantung · Pink/Merah · Event & Wisuda</div>
       </div>
     </div>
     <div class="note-box" style="margin-top:28px;max-width:480px;margin-left:auto;margin-right:auto;">
@@ -615,11 +644,12 @@
         </div>
         <div class="form-group full">
           <label>Jenis Papan <span class="req">*</span></label>
-          <select id="f-papan" onchange="updatePrice()">
+          <select id="f-papan" onchange="handleBoardChange()">
             <option value="">Pilih jenis papan...</option>
             <option value="Convex">Convex Mirror</option>
             <option value="Papan Bulat">Papan Bulat</option>
             <option value="Papan Kubah">Papan Kubah</option>
+            <option value="Papan Gantung">Papan Gantung</option>
           </select>
         </div>
         <div class="form-group full" id="price-group" style="display:none">
@@ -637,20 +667,11 @@
 
       <!-- Payment -->
       <div class="payment-box">
-        <h4>💳 Pembayaran</h4>
-        <div class="bank-row">
-          <div class="bank-info">
-            <div class="bank-name">SeaBank</div>
-            <div class="account">901335307677 (A.n Saifullah)</div>
-          </div>
-          <button class="copy-btn" onclick="copyText('901335307677')">Salin Nomor</button>
-        </div>
-        <div class="bank-row">
-          <div class="bank-info">
-            <div class="bank-name">DANA</div>
-            <div class="account">085747480993 (A.n Saifullah)</div>
-          </div>
-          <button class="copy-btn" onclick="copyText('085747480993')">Salin Nomor</button>
+        <h4>💳 Pembayaran QRIS</h4>
+        <div class="qris-box">
+          <img src="assets/qris.jpeg" alt="QRIS Velora.id" class="qris-img">
+          <div style="font-size:.9rem;color:var(--gold-light);font-weight:600;">VELORA.ID</div>
+          <div style="font-size:.78rem;color:rgba(255,255,255,0.7);margin-top:3px;">Scan QRIS untuk DP 50% atau pelunasan 100%</div>
         </div>
         <p class="payment-nb">
           <strong>NB:</strong> Order minimal harus DP 50% atau bisa lunas 100% dari harga sewa. Jika pesan tapi tidak melakukan minimal DP dianggap tidak pesan.<br>
@@ -679,14 +700,11 @@
       <div class="order-summary" id="success-summary"></div>
       <button class="btn btn-whatsapp" id="wa-success-btn" style="width:100%;margin-bottom:12px;display:none;justify-content:center;">💬 Kirim Detail Pesanan ke Admin</button>
       <div class="payment-box" style="margin-top:16px;">
-        <h4>💳 Transfer DP/Pelunasan ke</h4>
-        <div class="bank-row">
-          <div class="bank-info"><div class="bank-name">SeaBank</div><div class="account">901335307677 (A.n Saifullah)</div></div>
-          <button class="copy-btn" onclick="copyText('901335307677')">Salin</button>
-        </div>
-        <div class="bank-row">
-          <div class="bank-info"><div class="bank-name">DANA</div><div class="account">085747480993 (A.n Saifullah)</div></div>
-          <button class="copy-btn" onclick="copyText('085747480993')">Salin</button>
+        <h4>💳 Bayar DP/Pelunasan via QRIS</h4>
+        <div class="qris-box">
+          <img src="assets/qris.jpeg" alt="QRIS Velora.id" class="qris-img">
+          <div style="font-size:.9rem;color:var(--gold-light);font-weight:600;">VELORA.ID</div>
+          <div style="font-size:.78rem;color:rgba(255,255,255,0.7);margin-top:3px;">Scan QRIS, lalu kirim bukti pembayaran ke admin.</div>
         </div>
       </div>
       <button class="btn btn-pink" style="margin-top:20px;width:100%" onclick="showPage('home')">Kembali ke Beranda</button>
@@ -720,6 +738,13 @@
       <p style="font-size:.83rem;color:var(--muted);margin-bottom:16px;">Set total unit yang kamu miliki untuk setiap jenis papan. Stok tersisa dihitung otomatis dari pesanan aktif per tanggal.</p>
       <div class="stock-input-row" id="stock-input-row"></div>
       <button class="btn btn-pink" style="margin-top:16px;font-size:.85rem;" onclick="saveStock()">💾 Simpan Stok</button>
+    </div>
+
+    <div class="stock-mgr">
+      <h3>💰 Kelola Harga Sewa</h3>
+      <p style="font-size:.83rem;color:var(--muted);margin-bottom:16px;">Ubah harga sewa per acara dan jenis papan. Harga di halaman pelanggan akan ikut berubah setelah disimpan.</p>
+      <div class="price-admin-grid" id="price-admin-grid"></div>
+      <button class="btn btn-pink" style="margin-top:16px;font-size:.85rem;" onclick="savePrices()">💾 Simpan Harga</button>
     </div>
 
     <!-- Orders Table -->
