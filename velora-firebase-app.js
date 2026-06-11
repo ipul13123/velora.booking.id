@@ -1,796 +1,269 @@
-﻿<!DOCTYPE html>
-<html lang="id">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Velora.id - Booking Online</title>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
-<style>
-  :root {
-    --pink: #f4a7b9;
-    --pink-deep: #e87fa0;
-    --pink-light: #fce4ec;
-    --pink-pale: #fff5f8;
-    --gold: #c9a96e;
-    --gold-light: #e8d5b0;
-    --cream: #fdf6f0;
-    --dark: #2d1f2e;
-    --text: #3d2c3e;
-    --muted: #9e8a9f;
-    --white: #ffffff;
-    --shadow: 0 8px 32px rgba(200,100,130,0.12);
-    --shadow-lg: 0 20px 60px rgba(200,100,130,0.18);
+﻿const firebaseConfig = {
+  apiKey: "AIzaSyCMdmZYh6--CVR9yuHWCmbzWPXtyAAHduk",
+  authDomain: "velora-booking-59896.firebaseapp.com",
+  projectId: "velora-booking-59896",
+  storageBucket: "velora-booking-59896.firebasestorage.app",
+  messagingSenderId: "719631771230",
+  appId: "1:719631771230:web:89a81cf9e8e8205ce476cf",
+  measurementId: "G-YCE9NFGLRT"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+const stockRef = db.collection('settings').doc('stock');
+const blockedRef = db.collection('settings').doc('blocked');
+const priceRef = db.collection('settings').doc('prices');
+const ordersRef = db.collection('orders');
+const usageRef = db.collection('usage');
+const ADMIN_WHATSAPP = '6285717835248';
+
+const EVENT_TYPES = ['Sidang', 'Wedding', 'Lamaran', 'Event'];
+const DEFAULT_PRICE_MAP = {
+  'Sidang': { 'Convex': 85000, 'Papan Bulat': 60000, 'Papan Kubah': 55000, 'Papan Gantung': 85000 },
+  'Wedding': { 'Convex': 100000, 'Papan Bulat': 65000, 'Papan Kubah': 60000, 'Papan Gantung': 100000 },
+  'Lamaran': { 'Convex': 100000, 'Papan Bulat': 65000, 'Papan Kubah': 60000, 'Papan Gantung': 100000 },
+  'Event': { 'Convex': 100000, 'Papan Bulat': 65000, 'Papan Kubah': 60000, 'Papan Gantung': 100000 }
+};
+const PAPAN_TYPES = [
+  { key:'Convex', label:'Convex Mirror', icon:'🪞' },
+  { key:'Papan Bulat', label:'Papan Bulat', icon:'⭕' },
+  { key:'Papan Kubah', label:'Papan Kubah', icon:'🏛️' },
+  { key:'Papan Gantung', label:'Papan Gantung', icon:'🪷' }
+];
+const DEFAULT_STOCK = { 'Convex':2, 'Papan Bulat':2, 'Papan Kubah':2, 'Papan Gantung':1 };
+let orders = [], blockedDates = [], stockTotal = { ...DEFAULT_STOCK }, usageByDate = {}, priceMap = JSON.parse(JSON.stringify(DEFAULT_PRICE_MAP));
+let isAdmin = false, ordersUnsub = null;
+const today = new Date();
+let calYear = today.getFullYear(), calMonth = today.getMonth();
+
+function firebaseReady(){ return firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith('ISI_'); }
+function toast(msg){ const el=document.getElementById('toast'); if(!el) return alert(msg); el.textContent=msg; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),2800); }
+function err(e){ console.error(e); toast('Firebase belum siap atau izin database ditolak. Cek config dan rules.'); }
+function mergePriceMap(source={}){
+  const merged = JSON.parse(JSON.stringify(DEFAULT_PRICE_MAP));
+  EVENT_TYPES.forEach(event => {
+    merged[event] = { ...merged[event], ...(source[event] || {}) };
+  });
+  return merged;
+}
+function refresh(){ const a=document.querySelector('.page.active'); renderPriceTable(); updatePrice(); if(!a) return; if(a.id==='page-cek') renderCalendar(); if(a.id==='page-admin'&&isAdmin) renderAdmin(); }
+function toDateStr(date){ return date.getFullYear()+'-'+String(date.getMonth()+1).padStart(2,'0')+'-'+String(date.getDate()).padStart(2,'0'); }
+function formatDate(d){ return d ? new Date(d+'T00:00:00').toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'}) : '-'; }
+function orderMillis(o){ return o.createdAt?.toDate ? o.createdAt.toDate().getTime() : (o.createdAtText ? new Date(o.createdAtText).getTime() : 0); }
+function createdLabel(o){ return o.createdAt?.toDate ? o.createdAt.toDate().toLocaleString('id-ID') : (o.createdAtText ? new Date(o.createdAtText).toLocaleString('id-ID') : '-'); }
+
+function startRealtimeData(){
+  if(!firebaseReady()){ toast('Isi konfigurasi Firebase dulu di file HTML.'); return; }
+  stockRef.onSnapshot(async d=>{ if(d.exists&&d.data().items) stockTotal={...DEFAULT_STOCK,...d.data().items}; else await stockRef.set({items:DEFAULT_STOCK,updatedAt:firebase.firestore.FieldValue.serverTimestamp()}); refresh(); }, err);
+  blockedRef.onSnapshot(async d=>{ if(d.exists&&Array.isArray(d.data().dates)) blockedDates=d.data().dates; else await blockedRef.set({dates:[]}); refresh(); }, err);
+  priceRef.onSnapshot(d=>{ priceMap=d.exists&&d.data().items ? mergePriceMap(d.data().items) : mergePriceMap(); refresh(); }, err);
+  usageRef.onSnapshot(s=>{ usageByDate={}; s.forEach(d=>usageByDate[d.id]=d.data().counts||{}); refresh(); }, err);
+}
+function listenAdminOrders(){
+  if(ordersUnsub) ordersUnsub();
+  ordersUnsub=ordersRef.orderBy('createdAt','desc').onSnapshot(s=>{ orders=s.docs.map(d=>({id:d.id,...d.data()})); if(document.getElementById('page-admin')?.classList.contains('active')) renderAdmin(); }, err);
+}
+function getStockOnDate(dateStr){ const used=usageByDate[dateStr]||{}, r={}; PAPAN_TYPES.forEach(p=>r[p.key]=Math.max(0,(stockTotal[p.key]||0)-(used[p.key]||0))); return r; }
+
+function showPage(p){ if(p==='admin'&&!isAdmin){showAdminOverlay();return;} document.querySelectorAll('.page').forEach(el=>el.classList.remove('active')); document.getElementById('page-'+p).classList.add('active'); if(p==='cek') renderCalendar(); if(p==='admin') renderAdmin(); window.scrollTo(0,0); }
+function triggerAdmin(){ isAdmin ? showPage('admin') : showAdminOverlay(); }
+function showAdminOverlay(){ document.getElementById('admin-login-overlay').classList.add('active'); setTimeout(()=>document.getElementById('admin-email-input').focus(),100); }
+function closeAdminOverlay(){
+  document.getElementById('admin-login-overlay').classList.remove('active');
+  document.getElementById('admin-err').style.display='none';
+  document.getElementById('admin-email-input').value='';
+  document.getElementById('admin-pass-input').value='';
+}
+function showAdminError(message){
+  const el=document.getElementById('admin-err');
+  el.textContent=message;
+  el.style.display='block';
+}
+async function checkAdminLogin(){
+  const email=document.getElementById('admin-email-input').value.trim();
+  const password=document.getElementById('admin-pass-input').value;
+  if(!email||!password){ showAdminError('Isi email dan password admin.'); return; }
+  try{
+    await auth.signInWithEmailAndPassword(email,password);
+  }catch(e){
+    console.error(e);
+    const code=e.code||'';
+    if(code.includes('unauthorized-domain')) showAdminError('Domain website belum diizinkan di Firebase Authentication.');
+    else if(code.includes('user-not-found')||code.includes('invalid-credential')) showAdminError('Email admin belum terdaftar atau password salah.');
+    else if(code.includes('wrong-password')) showAdminError('Password admin salah.');
+    else if(code.includes('invalid-email')) showAdminError('Format email admin belum benar.');
+    else if(code.includes('network-request-failed')) showAdminError('Koneksi internet bermasalah. Coba lagi.');
+    else showAdminError('Login gagal. Cek Firebase Authentication dan domain Netlify.');
   }
+}
+async function adminLogout(){ await auth.signOut(); showPage('home'); }
+auth.onAuthStateChanged(u=>{ isAdmin=!!u; document.getElementById('admin-badge').style.display=isAdmin?'inline':'none'; if(isAdmin){ closeAdminOverlay(); listenAdminOrders(); } else { orders=[]; if(ordersUnsub) ordersUnsub(); if(document.getElementById('page-admin')?.classList.contains('active')) showPage('home'); } });
 
-  * { margin:0; padding:0; box-sizing:border-box; }
-
-  body {
-    font-family: 'DM Sans', sans-serif;
-    background: var(--pink-pale);
-    color: var(--text);
-    min-height: 100vh;
+function renderCalendar(){
+  const names=['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+  (document.getElementById('cal-month-label') || document.getElementById('cal-month-year')).textContent=names[calMonth]+' '+calYear;
+  const first=new Date(calYear,calMonth,1), last=new Date(calYear,calMonth+1,0), grid=document.getElementById('cal-days');
+  let html=''; for(let i=0;i<first.getDay();i++) html+='<button class="cal-day empty"></button>';
+  for(let d=1;d<=last.getDate();d++){
+    const date=new Date(calYear,calMonth,d), ds=toDateStr(date), past=date<new Date(today.getFullYear(),today.getMonth(),today.getDate()), blocked=blockedDates.includes(ds), stock=getStockOnDate(ds), full=blocked||PAPAN_TYPES.every(p=>stock[p.key]===0);
+    let cls='cal-day'; if(past) cls+=' past'; else if(full) cls+=' booked'; else if(ds===toDateStr(today)) cls+=' today';
+    html+=`<button class="${cls}" ${past||full?'':`onclick="checkDate('${ds}')"`}>${d}</button>`;
   }
-
-  /* ── ADMIN GUARD ── */
-  #admin-login-overlay {
-    display:none;
-    position:fixed; inset:0; z-index:9999;
-    background: rgba(45,31,46,0.92);
-    backdrop-filter: blur(8px);
-    align-items:center; justify-content:center;
+  grid.innerHTML=html;
+}
+function changeMonth(delta){ calMonth+=delta; if(calMonth<0){calMonth=11;calYear--;} if(calMonth>11){calMonth=0;calYear++;} renderCalendar(); }
+function prevMonth(){ changeMonth(-1); }
+function nextMonth(){ changeMonth(1); }
+function checkDate(dateStr){
+  document.querySelectorAll('.cal-day').forEach(b=>b.classList.remove('selected'));
+  const day=new Date(dateStr+'T00:00:00').getDate(); document.querySelectorAll('.cal-day').forEach(b=>{ if(b.textContent==day&&!b.classList.contains('empty')) b.classList.add('selected'); });
+  const stock=getStockOnDate(dateStr), blocked=blockedDates.includes(dateStr), allOut=PAPAN_TYPES.every(p=>stock[p.key]===0);
+  document.getElementById('cek-result').style.display='block';
+  document.getElementById('cek-banner').innerHTML=blocked||allOut ? `<div class="status-banner unavailable"><strong>Maaf, tanggal ${formatDate(dateStr)} tidak tersedia.</strong><br>Silakan pilih tanggal lain.</div>` : `<div class="status-banner available"><strong>Tanggal ${formatDate(dateStr)} tersedia.</strong><br>Kamu bisa lanjut melakukan pemesanan.</div>`;
+  document.getElementById('cek-stock-wrap').style.display='block';
+  document.getElementById('cek-stock-grid').innerHTML=PAPAN_TYPES.map(p=>{ const s=stock[p.key], total=stockTotal[p.key]||0; let cls='stock-card', text=''; if(blocked){cls+=' full';text='Tidak Tersedia';} else if(s===0){cls+=' full';text='Habis';} else if(s<=1){cls+=' low';text='Hampir Habis';} else {cls+=' ready';text='Tersedia';} return `<div class="${cls}"><div class="papan-icon">${p.icon}</div><div class="papan-name">${p.label}</div><div class="stock-num">${blocked?0:s}</div><div class="stock-lbl">${text}</div><div class="stock-of">dari ${total} unit</div></div>`; }).join('');
+  document.getElementById('f-tgl').value=dateStr;
+}
+function renderPriceTable(){
+  const tbody = document.getElementById('price-table-body');
+  if(!tbody) return;
+  tbody.innerHTML = EVENT_TYPES.map(event => `<tr><td>${event}</td>${PAPAN_TYPES.map(p => `<td style="color:var(--pink-deep);font-weight:600">Rp ${(priceMap[event]?.[p.key] || 0).toLocaleString('id-ID')}</td>`).join('')}</tr>`).join('');
+}
+function updateColorOptions(){
+  const papan = document.getElementById('f-papan')?.value;
+  const warna = document.getElementById('f-warna');
+  if(!warna) return;
+  const current = warna.value;
+  const options = papan === 'Papan Gantung'
+    ? ['', 'Pink', 'Merah']
+    : ['', 'Pink', 'Merah', 'Biru', 'Coklat/Cream'];
+  warna.innerHTML = options.map(v => `<option value="${v}">${v || 'Pilih warna...'}</option>`).join('');
+  warna.value = options.includes(current) ? current : '';
+}
+function handleBoardChange(){
+  updateColorOptions();
+  updatePrice();
+  if(document.getElementById('f-papan').value === 'Papan Gantung') toast('Papan Gantung hanya ready bunga Pink dan Merah.');
+}
+function updatePrice(){ const a=document.getElementById('f-acara').value, p=document.getElementById('f-papan').value, g=document.getElementById('price-group'); if(a&&p&&priceMap[a]?.[p]){ document.getElementById('price-show').innerHTML=`<span>Rp </span>${priceMap[a][p].toLocaleString('id-ID')}`; g.style.display='block'; } else g.style.display='none'; }
+function getWhatsAppLink(message){
+  return `https://wa.me/${ADMIN_WHATSAPP}?text=${encodeURIComponent(message)}`;
+}
+function openWhatsAppAdmin(message='Halo Admin Velora, saya ingin bertanya tentang sewa papan ucapan.'){
+  window.open(getWhatsAppLink(message), '_blank');
+}
+function buildOrderWhatsAppMessage(order){
+  return [
+    'Halo Admin Velora, saya sudah membuat pesanan.',
+    '',
+    `Nama: ${order.nama}`,
+    `No. HP: ${order.hp}`,
+    `Tanggal: ${formatDate(order.tanggal)}`,
+    `Jam: ${order.jam}`,
+    `Durasi: ${order.durasi}`,
+    `Lokasi: ${order.lokasi}`,
+    `Acara: ${order.acara}`,
+    `Jenis Papan: ${order.papan}`,
+    `Warna Bunga: ${order.warna}`,
+    `Total Sewa: Rp ${order.harga.toLocaleString('id-ID')}`,
+    `Min. DP 50%: Rp ${Math.ceil(order.harga*0.5).toLocaleString('id-ID')}`,
+    '',
+    `Ucapan: ${order.ucapan}`,
+    '',
+    'Mohon diproses ya, Admin.'
+  ].join('\n');
+}
+async function submitOrder(){
+  if(!firebaseReady()){toast('Isi konfigurasi Firebase dulu.');return;}
+  const fields=[['f-nama','Nama Penyewa'],['f-hp','No. HP'],['f-id','Identitas'],['f-tgl','Tanggal Sewa'],['f-jam','Jam'],['f-durasi','Durasi'],['f-lokasi','Lokasi'],['f-warna','Warna Bunga'],['f-acara','Kebutuhan Acara'],['f-papan','Jenis Papan'],['f-ucapan','Ucapan']];
+  for(const [id,lbl] of fields){ const el=document.getElementById(id); if(!el||!el.value.trim()){toast('Mohon isi: '+lbl); if(el)el.focus(); return;} }
+  const tanggal=document.getElementById('f-tgl').value, papan=document.getElementById('f-papan').value, acara=document.getElementById('f-acara').value, warna=document.getElementById('f-warna').value, harga=priceMap[acara]?.[papan]||0;
+  if(papan === 'Papan Gantung' && !['Pink','Merah'].includes(warna)){ toast('Papan Gantung hanya tersedia bunga Pink dan Merah.'); return; }
+  const order={nama:document.getElementById('f-nama').value.trim(),hp:document.getElementById('f-hp').value.trim(),identitas:document.getElementById('f-id').value,tanggal,jam:document.getElementById('f-jam').value,durasi:document.getElementById('f-durasi').value,lokasi:document.getElementById('f-lokasi').value.trim(),warna:document.getElementById('f-warna').value,acara,papan,harga,ucapan:document.getElementById('f-ucapan').value.trim(),status:'Pending',createdAt:firebase.firestore.FieldValue.serverTimestamp(),createdAtText:new Date().toISOString()};
+  const newOrder=ordersRef.doc();
+  try{
+    await db.runTransaction(async tx=>{
+      const sd=await tx.get(stockRef), bd=await tx.get(blockedRef), ud=await tx.get(usageRef.doc(tanggal));
+      const stock=sd.exists&&sd.data().items?{...DEFAULT_STOCK,...sd.data().items}:DEFAULT_STOCK;
+      const blocked=bd.exists&&Array.isArray(bd.data().dates)?bd.data().dates:[];
+      const counts=ud.exists&&ud.data().counts?ud.data().counts:{};
+      if(blocked.includes(tanggal)) throw new Error('blocked');
+      if((stock[papan]||0)-(counts[papan]||0)<=0) throw new Error('out');
+      tx.set(newOrder,order);
+      tx.set(usageRef.doc(tanggal),{counts:{...counts,[papan]:(counts[papan]||0)+1}},{merge:true});
+    });
+  }catch(e){ if(e.message==='blocked') toast('Tanggal ini sedang tidak tersedia.'); else if(e.message==='out') toast('Stok papan ini sudah habis di tanggal tersebut.'); else err(e); return; }
+  document.getElementById('success-summary').innerHTML=`<div class="row"><span>Nama</span><span>${order.nama}</span></div><div class="row"><span>Tanggal</span><span>${formatDate(order.tanggal)} · ${order.jam}</span></div><div class="row"><span>Jenis</span><span>${order.papan} · ${order.acara}</span></div><div class="row"><span>Lokasi</span><span>${order.lokasi}</span></div><div class="row"><span>Durasi</span><span>${order.durasi}</span></div><div class="row"><span>Total Sewa</span><span>Rp ${order.harga.toLocaleString('id-ID')}</span></div><div class="row"><span>Min. DP (50%)</span><span style="color:var(--pink-deep)">Rp ${Math.ceil(order.harga*0.5).toLocaleString('id-ID')}</span></div>`;
+  const waMessage = buildOrderWhatsAppMessage(order);
+  const waLink = getWhatsAppLink(waMessage);
+  const waBtn = document.getElementById('wa-success-btn');
+  if(waBtn){
+    waBtn.style.display='inline-flex';
+    waBtn.onclick=()=>window.open(waLink,'_blank');
   }
-  #admin-login-overlay.active { display:flex; }
-  .admin-login-box {
-    background: var(--white);
-    border-radius: 20px;
-    padding: 40px;
-    width: 340px;
-    text-align: center;
-    box-shadow: var(--shadow-lg);
-  }
-  .admin-login-box h3 {
-    font-family: 'Playfair Display', serif;
-    font-size: 1.5rem;
-    color: var(--dark);
-    margin-bottom: 8px;
-  }
-  .admin-login-box p { color: var(--muted); font-size:.85rem; margin-bottom:24px; }
+  ['f-nama','f-hp','f-tgl','f-jam','f-lokasi','f-ucapan'].forEach(id=>document.getElementById(id).value='');
+  ['f-id','f-durasi','f-warna','f-acara','f-papan'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('price-group').style.display='none'; showPage('sukses');
+  setTimeout(()=>window.open(waLink,'_blank'), 350);
+}
 
-  /* ── NAVBAR ── */
-  nav {
-    background: linear-gradient(135deg, var(--dark) 0%, #4a2550 100%);
-    padding: 0 32px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    height: 64px;
-    position: sticky; top:0; z-index:100;
-    box-shadow: 0 4px 20px rgba(45,31,46,0.3);
-  }
-  .nav-brand {
-    font-family: 'Playfair Display', serif;
-    font-size: 1.5rem;
-    color: var(--gold-light);
-    letter-spacing: 0.02em;
-    display:flex; align-items:center; gap:10px;
-  }
-  .nav-brand span { font-size:.75rem; color: var(--pink); font-family:'DM Sans',sans-serif; letter-spacing:.1em; text-transform:uppercase; font-weight:500; }
-  .nav-links { display:flex; gap:8px; align-items:center; }
-  .nav-btn {
-    padding: 8px 18px;
-    border-radius: 50px;
-    border: none; cursor:pointer;
-    font-family: 'DM Sans', sans-serif;
-    font-size: .85rem; font-weight:500;
-    transition: all .2s;
-  }
-  .nav-btn.ghost { background:transparent; color: var(--gold-light); border: 1px solid rgba(201,169,110,0.4); }
-  .nav-btn.ghost:hover { background: rgba(201,169,110,0.1); }
-  .nav-btn.primary { background: linear-gradient(135deg, var(--pink-deep), var(--gold)); color:white; }
-  .nav-btn.primary:hover { transform:translateY(-1px); box-shadow:0 4px 16px rgba(232,127,160,0.4); }
-  .admin-badge { background: var(--gold); color:var(--dark); padding:3px 10px; border-radius:50px; font-size:.75rem; font-weight:700; }
+function renderAdmin(){
+  const total=orders.length,pending=orders.filter(o=>o.status==='Pending').length,dp=orders.filter(o=>o.status==='DP').length,lunas=orders.filter(o=>o.status==='Lunas').length,revenue=orders.filter(o=>o.status!=='Batal').reduce((a,o)=>a+(Number(o.harga)||0),0);
+  document.getElementById('stats-row').innerHTML=`<div class="stat-card"><div class="num">${total}</div><div class="lbl">Total Pesanan</div></div><div class="stat-card"><div class="num" style="color:#856404">${pending}</div><div class="lbl">Pending</div></div><div class="stat-card"><div class="num" style="color:#084298">${dp}</div><div class="lbl">Sudah DP</div></div><div class="stat-card"><div class="num" style="color:#0a3622">${lunas}</div><div class="lbl">Lunas</div></div><div class="stat-card"><div class="num" style="font-size:1.2rem;color:var(--pink-deep)">Rp ${(revenue/1000).toFixed(0)}rb</div><div class="lbl">Total Revenue</div></div>`;
+  renderBlockedList(); renderStockInputs(); renderPriceInputs(); renderTable();
+}
+function renderTable(){
+  const filter=document.getElementById('filter-status').value, filtered=filter?orders.filter(o=>o.status===filter):[...orders]; filtered.sort((a,b)=>orderMillis(b)-orderMillis(a));
+  const tbody=document.getElementById('orders-tbody'); if(!filtered.length){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--muted)">Belum ada pesanan</td></tr>';return;}
+  tbody.innerHTML=filtered.map((o,i)=>`<tr><td>${i+1}</td><td><strong>${o.nama}</strong><br><span style="color:var(--muted);font-size:.75rem">${o.hp}</span></td><td>${formatDate(o.tanggal)}<br><span style="color:var(--muted);font-size:.75rem">${o.jam} · ${o.durasi}</span></td><td>${o.acara}</td><td>${o.papan}</td><td style="font-weight:600;color:var(--pink-deep)">Rp ${(Number(o.harga)||0).toLocaleString('id-ID')}</td><td><span class="badge badge-${String(o.status).toLowerCase().replace(' ','')}">${o.status}</span></td><td><div class="action-btns"><button class="action-btn confirm" onclick="viewOrder('${o.id}')">👁</button>${o.status==='Pending'?`<button class="action-btn dp" onclick="setStatus('${o.id}','DP')">DP</button>`:''}${o.status!=='Lunas'&&o.status!=='Batal'?`<button class="action-btn confirm" onclick="setStatus('${o.id}','Lunas')">Lunas</button>`:''}${o.status!=='Batal'?`<button class="action-btn cancel" onclick="setStatus('${o.id}','Batal')">Batal</button>`:''}<button class="action-btn delete" onclick="deleteOrder('${o.id}')">🗑</button></div></td></tr>`).join('');
+}
+async function adjustUsage(tx,tanggal,papan,delta){ if(!tanggal||!papan||!delta)return; const ref=usageRef.doc(tanggal), d=await tx.get(ref), counts=d.exists&&d.data().counts?d.data().counts:{}; counts[papan]=Math.max(0,(counts[papan]||0)+delta); tx.set(ref,{counts},{merge:true}); }
+async function setStatus(id,status){ const old=orders.find(o=>o.id===id); if(!old)return; await db.runTransaction(async tx=>{ tx.update(ordersRef.doc(id),{status,updatedAt:firebase.firestore.FieldValue.serverTimestamp()}); if(old.status!=='Batal'&&status==='Batal') await adjustUsage(tx,old.tanggal,old.papan,-1); if(old.status==='Batal'&&status!=='Batal') await adjustUsage(tx,old.tanggal,old.papan,1); }); toast('Status diubah ke '+status); }
+async function deleteOrder(id){ if(!confirm('Hapus pesanan ini?'))return; const old=orders.find(o=>o.id===id); await db.runTransaction(async tx=>{ if(old&&old.status!=='Batal') await adjustUsage(tx,old.tanggal,old.papan,-1); tx.delete(ordersRef.doc(id)); }); toast('Pesanan dihapus'); }
+function viewOrder(id){
+  const o=orders.find(x=>x.id===id); if(!o)return;
+  document.getElementById('modal-content').innerHTML=`<div class="detail-row"><span class="key">Nama</span><span class="val">${o.nama}</span></div><div class="detail-row"><span class="key">No. HP</span><span class="val">${o.hp}</span></div><div class="detail-row"><span class="key">Identitas</span><span class="val">${o.identitas}</span></div><div class="detail-row"><span class="key">Tanggal</span><span class="val">${formatDate(o.tanggal)} · ${o.jam}</span></div><div class="detail-row"><span class="key">Durasi</span><span class="val">${o.durasi}</span></div><div class="detail-row"><span class="key">Lokasi</span><span class="val">${o.lokasi}</span></div><div class="detail-row"><span class="key">Warna Bunga</span><span class="val">${o.warna}</span></div><div class="detail-row"><span class="key">Acara</span><span class="val">${o.acara}</span></div><div class="detail-row"><span class="key">Jenis Papan</span><span class="val">${o.papan}</span></div><div class="detail-row"><span class="key">Harga</span><span class="val" style="color:var(--pink-deep);font-weight:700">Rp ${(Number(o.harga)||0).toLocaleString('id-ID')}</span></div><div class="detail-row"><span class="key">Status</span><span class="val"><span class="badge badge-${String(o.status).toLowerCase()}">${o.status}</span></span></div><div class="detail-row"><span class="key">Ucapan</span><span class="val" style="white-space:pre-wrap">${o.ucapan}</span></div><div class="detail-row"><span class="key">Dipesan</span><span class="val">${createdLabel(o)}</span></div>`;
+  document.getElementById('modal-actions').innerHTML=`${o.status==='Pending'?`<button class="action-btn dp" onclick="setStatus('${o.id}','DP');closeModal()">Konfirmasi DP</button>`:''}${o.status!=='Lunas'&&o.status!=='Batal'?`<button class="action-btn confirm" onclick="setStatus('${o.id}','Lunas');closeModal()">Tandai Lunas</button>`:''}`;
+  document.getElementById('detail-modal').classList.add('active');
+}
+function closeModal(){document.getElementById('detail-modal').classList.remove('active');}
+function renderBlockedList(){ const list=document.getElementById('blocked-list-display'); list.innerHTML=blockedDates.length?blockedDates.map(d=>`<div class="blocked-chip">${formatDate(d)} <button onclick="removeBlock('${d}')">×</button></div>`).join(''):'<span style="color:var(--muted);font-size:.82rem">Belum ada tanggal yang diblocked</span>'; }
+function renderStockInputs(){ const row=document.getElementById('stock-input-row'); if(!row)return; row.innerHTML=PAPAN_TYPES.map(p=>`<div class="stock-input-item"><label>${p.icon} ${p.label}</label><div class="stock-ctrl"><button onclick="changeStock('${p.key}', -1)">−</button><span class="stock-val" id="sv-${p.key.replace(' ','-')}">${stockTotal[p.key]||0}</span><button onclick="changeStock('${p.key}', 1)">+</button></div></div>`).join(''); }
+function changeStock(key,delta){ stockTotal[key]=Math.max(0,(stockTotal[key]||0)+delta); const el=document.getElementById('sv-'+key.replace(' ','-')); if(el)el.textContent=stockTotal[key]; }
+async function saveStock(){ await stockRef.set({items:stockTotal,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}); toast('Stok berhasil disimpan!'); }
+function priceInputId(event, papan){ return `price-${event}-${papan}`.replace(/[^a-zA-Z0-9_-]/g,'-'); }
+function renderPriceInputs(){
+  const grid=document.getElementById('price-admin-grid');
+  if(!grid) return;
+  grid.innerHTML=EVENT_TYPES.map(event => PAPAN_TYPES.map(p => {
+    const id=priceInputId(event,p.key);
+    return `<div class="price-admin-item"><label>${event} - ${p.label}</label><input id="${id}" type="number" min="0" step="1000" value="${priceMap[event]?.[p.key] || 0}"></div>`;
+  }).join('')).join('');
+}
+async function savePrices(){
+  const next=mergePriceMap(priceMap);
+  EVENT_TYPES.forEach(event => PAPAN_TYPES.forEach(p => {
+    const el=document.getElementById(priceInputId(event,p.key));
+    next[event][p.key]=Math.max(0, Number(el?.value || 0));
+  }));
+  priceMap=next;
+  await priceRef.set({items:priceMap,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+  renderPriceTable();
+  updatePrice();
+  toast('Harga berhasil disimpan!');
+}
+async function addBlockedDate(){ const d=document.getElementById('block-date-input').value; if(!d){toast('Pilih tanggal dulu');return;} if(!blockedDates.includes(d)){ await blockedRef.set({dates:[...blockedDates,d].sort()},{merge:true}); toast(formatDate(d)+' sudah diblocked'); } else toast('Tanggal sudah diblocked'); document.getElementById('block-date-input').value=''; }
+async function removeBlock(d){ await blockedRef.set({dates:blockedDates.filter(x=>x!==d)},{merge:true}); toast('Block dihapus: '+formatDate(d)); }
+function exportCSV(){ if(!orders.length){toast('Belum ada pesanan');return;} const header=['ID','Nama','HP','Identitas','Tanggal','Jam','Durasi','Lokasi','Warna','Acara','Papan','Harga','Ucapan','Status','Dibuat']; const rows=orders.map(o=>[o.id,o.nama,o.hp,o.identitas,o.tanggal,o.jam,o.durasi,'"'+o.lokasi+'"',o.warna,o.acara,o.papan,o.harga,'"'+String(o.ucapan||'').replace(/"/g,"'")+'"',o.status,createdLabel(o)]); const csv=[header,...rows].map(r=>r.join(',')).join('\n'); const a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv); a.download='velora_pesanan_'+new Date().toISOString().slice(0,10)+'.csv'; a.click(); toast('CSV berhasil diexport'); }
+function copyText(text){ navigator.clipboard.writeText(text).catch(()=>{}); toast('Nomor '+text+' disalin!'); }
 
-  /* ── HERO ── */
-  .hero {
-    background: linear-gradient(160deg, #2d1f2e 0%, #5a2060 50%, #2d1f2e 100%);
-    padding: 72px 32px 80px;
-    text-align:center; position:relative; overflow:hidden;
-  }
-  .hero::before {
-    content:''; position:absolute; inset:0;
-    background: radial-gradient(ellipse at 30% 50%, rgba(244,167,185,0.12) 0%, transparent 60%),
-                radial-gradient(ellipse at 70% 30%, rgba(201,169,110,0.1) 0%, transparent 60%);
-  }
-  .hero-logo-img {
-    width:110px; height:110px; border-radius:50%;
-    object-fit:cover; border:3px solid var(--gold);
-    box-shadow: 0 0 40px rgba(201,169,110,0.3);
-    margin-bottom:20px; position:relative;
-  }
-  .hero h1 {
-    font-family: 'Playfair Display', serif;
-    font-size: clamp(2rem,5vw,3.2rem);
-    color: var(--gold-light);
-    letter-spacing:0.03em;
-    position:relative;
-  }
-  .hero h1 em { color: var(--pink); font-style:italic; }
-  .hero p { color:rgba(255,255,255,0.6); font-size:.95rem; margin-top:10px; position:relative; font-family:'Cormorant Garamond',serif; font-size:1.1rem; letter-spacing:.05em; }
-  .hero-cta {
-    margin-top:28px; display:flex; gap:12px; justify-content:center; flex-wrap:wrap; position:relative;
-  }
-  .btn {
-    padding:12px 28px; border-radius:50px; border:none; cursor:pointer;
-    font-family:'DM Sans',sans-serif; font-weight:500; font-size:.9rem;
-    transition: all .25s; display:inline-flex; align-items:center; gap:8px;
-  }
-  .btn-pink { background:linear-gradient(135deg, var(--pink-deep), #d4607a); color:white; }
-  .btn-pink:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(232,127,160,0.4); }
-  .btn-outline { background:transparent; border:1.5px solid rgba(201,169,110,0.5); color:var(--gold-light); }
-  .btn-outline:hover { background:rgba(201,169,110,0.1); }
-  .btn-whatsapp { background:#25d366; color:white; }
-  .btn-whatsapp:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(37,211,102,0.32); }
-  .nav-btn.whatsapp { background:#25d366; color:white; }
-  .nav-btn.whatsapp:hover { transform:translateY(-1px); box-shadow:0 4px 16px rgba(37,211,102,0.32); }
-
-  /* ── SECTIONS ── */
-  .page { display:none; }
-  .page.active { display:block; }
-  .container { max-width:960px; margin:0 auto; padding:40px 20px; }
-
-  /* ── GALLERY ── */
-  .section-title {
-    font-family:'Playfair Display',serif;
-    font-size:1.8rem; color:var(--dark);
-    text-align:center; margin-bottom:8px;
-  }
-  .section-sub { text-align:center; color:var(--muted); margin-bottom:32px; font-size:.9rem; }
-  .gallery-grid {
-    display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr));
-    gap:16px;
-  }
-  .gallery-card {
-    border-radius:16px; overflow:hidden;
-    box-shadow: var(--shadow);
-    background:var(--white);
-    transition: transform .3s, box-shadow .3s;
-  }
-  .gallery-card:hover { transform:translateY(-4px); box-shadow:var(--shadow-lg); }
-  .gallery-card img { width:100%; height:280px; object-fit:cover; display:block; }
-  .gallery-card .caption {
-    padding:14px 16px; font-size:.83rem; color:var(--muted);
-    text-align:center; font-family:'Cormorant Garamond',serif; font-size:.95rem;
-  }
-
-  /* ── CALENDAR ── */
-  .calendar-wrap {
-    background:var(--white); border-radius:20px; padding:28px;
-    box-shadow:var(--shadow); max-width:480px; margin:0 auto 32px;
-  }
-  .cal-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
-  .cal-header h3 { font-family:'Playfair Display',serif; font-size:1.2rem; }
-  .cal-nav { background:none; border:none; cursor:pointer; font-size:1.2rem; color:var(--pink-deep); padding:4px 10px; border-radius:8px; }
-  .cal-nav:hover { background:var(--pink-light); }
-  .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
-  .cal-day-name { text-align:center; font-size:.72rem; font-weight:600; color:var(--muted); padding:4px 0; text-transform:uppercase; letter-spacing:.05em; }
-  .cal-day {
-    aspect-ratio:1; border-radius:10px; border:none; cursor:pointer;
-    font-size:.82rem; font-weight:500; transition:all .15s;
-    background:transparent;
-  }
-  .cal-day:hover:not(.booked):not(.past) { background:var(--pink-light); color:var(--pink-deep); }
-  .cal-day.today { background:var(--pink); color:white; font-weight:700; }
-  .cal-day.booked { background:#ffe0e6; color:#c0607a; cursor:default; position:relative; }
-  .cal-day.booked::after { content:'✕'; font-size:.6rem; position:absolute; bottom:2px; right:4px; }
-  .cal-day.past { color:#ccc; cursor:default; }
-  .cal-day.selected { background:linear-gradient(135deg,var(--pink-deep),var(--gold)); color:white; }
-  .cal-day.empty { background:transparent; cursor:default; }
-  .cal-legend { display:flex; gap:16px; justify-content:center; margin-top:16px; flex-wrap:wrap; }
-  .legend-item { display:flex; align-items:center; gap:6px; font-size:.78rem; color:var(--muted); }
-  .legend-dot { width:12px; height:12px; border-radius:4px; }
-
-  /* ── FORM ── */
-  .form-card {
-    background:var(--white); border-radius:24px;
-    padding:36px; box-shadow:var(--shadow);
-    max-width:640px; margin:0 auto;
-  }
-  .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
-  @media(max-width:540px){ .form-grid { grid-template-columns:1fr; } }
-  .form-group { display:flex; flex-direction:column; gap:6px; }
-  .form-group.full { grid-column:1/-1; }
-  label { font-size:.82rem; font-weight:500; color:var(--dark); letter-spacing:.02em; }
-  label span.req { color:var(--pink-deep); }
-  input, select, textarea {
-    padding:11px 14px; border-radius:10px;
-    border:1.5px solid #e8d5e8; font-family:'DM Sans',sans-serif;
-    font-size:.88rem; color:var(--text); background:var(--pink-pale);
-    transition: border-color .2s, box-shadow .2s; outline:none;
-  }
-  input:focus, select:focus, textarea:focus {
-    border-color:var(--pink); box-shadow:0 0 0 3px rgba(244,167,185,0.2);
-  }
-  textarea { resize:vertical; min-height:80px; }
-  .price-display {
-    background:linear-gradient(135deg,#fff5f8,#fce8f0);
-    border:1.5px solid var(--pink);
-    border-radius:12px; padding:14px 18px;
-    display:flex; align-items:center; justify-content:space-between;
-    margin-top:4px;
-  }
-  .price-display .label { font-size:.82rem; color:var(--muted); }
-  .price-display .amount {
-    font-family:'Playfair Display',serif;
-    font-size:1.4rem; color:var(--dark); font-weight:700;
-  }
-  .price-display .amount span { font-size:.9rem; font-weight:400; }
-
-  /* Payment box */
-  .payment-box {
-    background:linear-gradient(135deg,#2d1f2e,#4a2550);
-    border-radius:16px; padding:24px; color:white; margin:20px 0;
-  }
-  .payment-box h4 { font-family:'Playfair Display',serif; font-size:1.1rem; color:var(--gold-light); margin-bottom:16px; }
-  .bank-row {
-    background:rgba(255,255,255,0.08); border-radius:10px; padding:12px 16px;
-    margin-bottom:10px; display:flex; align-items:center; justify-content:space-between;
-  }
-  .bank-row .bank-info .bank-name { font-weight:600; font-size:.9rem; color:var(--gold-light); }
-  .bank-row .bank-info .account { font-size:.82rem; color:rgba(255,255,255,0.7); margin-top:2px; }
-  .qris-box {
-    background:rgba(255,255,255,0.08);
-    border-radius:14px;
-    padding:16px;
-    text-align:center;
-  }
-  .qris-img {
-    width:min(100%, 320px);
-    border-radius:12px;
-    background:white;
-    padding:8px;
-    display:block;
-    margin:0 auto 12px;
-  }
-  .copy-btn {
-    background:rgba(201,169,110,0.2); border:1px solid rgba(201,169,110,0.4);
-    color:var(--gold-light); border-radius:8px; padding:6px 12px;
-    font-size:.75rem; cursor:pointer; transition:all .2s; white-space:nowrap;
-  }
-  .copy-btn:hover { background:rgba(201,169,110,0.35); }
-  .payment-nb { font-size:.8rem; color:rgba(255,255,255,0.55); margin-top:12px; line-height:1.6; }
-  .payment-nb strong { color:var(--pink); }
-  .floating-wa {
-    position:fixed; right:22px; bottom:22px; z-index:900;
-    width:56px; height:56px; border-radius:50%;
-    background:#25d366; color:white; border:none; cursor:pointer;
-    display:flex; align-items:center; justify-content:center;
-    font-size:1.65rem; box-shadow:0 10px 28px rgba(37,211,102,0.36);
-    transition:transform .2s, box-shadow .2s;
-  }
-  .floating-wa:hover { transform:translateY(-2px) scale(1.03); box-shadow:0 14px 34px rgba(37,211,102,0.44); }
-
-  .note-box {
-    background:var(--pink-light); border-radius:12px; padding:14px 18px;
-    font-size:.83rem; color:var(--text); line-height:1.7;
-    border-left:3px solid var(--pink-deep);
-  }
-
-  /* ── ADMIN ── */
-  .admin-wrap { max-width:900px; margin:0 auto; padding:32px 20px; }
-  .admin-header {
-    display:flex; align-items:center; justify-content:space-between;
-    margin-bottom:28px;
-  }
-  .admin-header h2 { font-family:'Playfair Display',serif; font-size:1.6rem; }
-  .stats-row { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:16px; margin-bottom:32px; }
-  .stat-card { background:var(--white); border-radius:16px; padding:20px; box-shadow:var(--shadow); text-align:center; }
-  .stat-card .num { font-family:'Playfair Display',serif; font-size:2rem; color:var(--dark); }
-  .stat-card .lbl { font-size:.78rem; color:var(--muted); margin-top:4px; text-transform:uppercase; letter-spacing:.08em; }
-
-  .order-table-wrap { background:var(--white); border-radius:20px; box-shadow:var(--shadow); overflow:hidden; }
-  .table-header { padding:20px 24px; border-bottom:1px solid #f0e6f0; display:flex; align-items:center; justify-content:space-between; }
-  .table-header h3 { font-family:'Playfair Display',serif; }
-  .filter-row { display:flex; gap:10px; flex-wrap:wrap; }
-  .filter-select { padding:7px 12px; border-radius:8px; border:1.5px solid #e8d5e8; font-size:.82rem; font-family:'DM Sans',sans-serif; background:var(--pink-pale); }
-
-  table { width:100%; border-collapse:collapse; }
-  th { background:var(--pink-pale); padding:12px 16px; text-align:left; font-size:.78rem; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); font-weight:600; }
-  td { padding:12px 16px; border-bottom:1px solid #f8f0f8; font-size:.83rem; vertical-align:top; }
-  tr:last-child td { border-bottom:none; }
-  tr:hover td { background:#fdf5fd; }
-  .badge {
-    display:inline-block; padding:3px 10px; border-radius:50px; font-size:.72rem; font-weight:600;
-  }
-  .badge-pending { background:#fff3cd; color:#856404; }
-  .badge-dp { background:#cfe2ff; color:#084298; }
-  .badge-lunas { background:#d1e7dd; color:#0a3622; }
-  .badge-cancel { background:#f8d7da; color:#842029; }
-
-  .action-btns { display:flex; gap:6px; flex-wrap:wrap; }
-  .action-btn { padding:4px 10px; border-radius:6px; border:none; cursor:pointer; font-size:.73rem; font-weight:600; transition:all .15s; }
-  .action-btn.confirm { background:#d1e7dd; color:#0a3622; }
-  .action-btn.dp { background:#cfe2ff; color:#084298; }
-  .action-btn.cancel { background:#f8d7da; color:#842029; }
-  .action-btn.delete { background:#f8d7da; color:#842029; }
-  .action-btn:hover { filter:brightness(0.9); }
-
-  /* blocked dates admin */
-  .blocked-mgr { background:var(--white); border-radius:20px; padding:24px; box-shadow:var(--shadow); margin-top:24px; }
-  .blocked-mgr h3 { font-family:'Playfair Display',serif; margin-bottom:16px; }
-  .blocked-list { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
-  .blocked-chip {
-    background:var(--pink-light); border-radius:50px; padding:5px 14px;
-    font-size:.8rem; display:flex; align-items:center; gap:8px; color:var(--dark);
-  }
-  .blocked-chip button { background:none; border:none; cursor:pointer; color:var(--pink-deep); font-size:1rem; line-height:1; }
-
-  /* ── MODAL ── */
-  .modal-overlay { display:none; position:fixed; inset:0; z-index:500; background:rgba(45,31,46,0.6); backdrop-filter:blur(4px); align-items:center; justify-content:center; padding:20px; }
-  .modal-overlay.active { display:flex; }
-  .modal { background:var(--white); border-radius:24px; padding:36px; max-width:500px; width:100%; box-shadow:var(--shadow-lg); max-height:90vh; overflow-y:auto; }
-  .modal h3 { font-family:'Playfair Display',serif; font-size:1.4rem; margin-bottom:16px; }
-  .detail-row { display:flex; gap:8px; padding:10px 0; border-bottom:1px solid #f5eef5; font-size:.85rem; }
-  .detail-row .key { color:var(--muted); min-width:140px; }
-  .detail-row .val { font-weight:500; }
-  .detail-row:last-child { border-bottom:none; }
-
-  /* ── TOAST ── */
-  #toast {
-    position:fixed; bottom:28px; right:28px; z-index:999;
-    background:var(--dark); color:white; padding:12px 22px; border-radius:12px;
-    font-size:.85rem; opacity:0; transform:translateY(10px); transition:all .3s; pointer-events:none;
-    box-shadow:0 8px 24px rgba(0,0,0,0.2);
-  }
-  #toast.show { opacity:1; transform:translateY(0); }
-
-  /* ── SUCCESS ── */
-  .success-card {
-    background:var(--white); border-radius:24px; padding:48px 36px; text-align:center;
-    box-shadow:var(--shadow-lg); max-width:520px; margin:0 auto;
-  }
-  .success-icon { font-size:4rem; margin-bottom:16px; }
-  .success-card h2 { font-family:'Playfair Display',serif; font-size:1.8rem; margin-bottom:8px; }
-  .success-card p { color:var(--muted); line-height:1.7; }
-  .order-summary { background:var(--pink-pale); border-radius:16px; padding:20px; margin:24px 0; text-align:left; }
-  .order-summary .row { display:flex; justify-content:space-between; padding:6px 0; font-size:.85rem; border-bottom:1px dashed #f0e0f0; }
-  .order-summary .row:last-child { border:none; font-weight:700; font-size:.95rem; color:var(--dark); }
-
-  /* ── STOCK CARDS ── */
-  .stock-grid {
-    display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:14px;
-    margin-top:18px;
-  }
-  .stock-card {
-    border-radius:16px; padding:18px 16px; text-align:center;
-    border:2px solid transparent; transition:all .2s;
-  }
-  .stock-card.ready { background:#f0fdf4; border-color:#86efac; }
-  .stock-card.low   { background:#fffbeb; border-color:#fcd34d; }
-  .stock-card.full  { background:#fff1f2; border-color:#fca5a5; }
-  .stock-card .papan-icon { font-size:2rem; margin-bottom:8px; }
-  .stock-card .papan-name { font-family:'Playfair Display',serif; font-size:.92rem; font-weight:600; color:var(--dark); margin-bottom:6px; }
-  .stock-card .stock-num { font-size:1.8rem; font-weight:700; line-height:1; }
-  .stock-card.ready .stock-num { color:#16a34a; }
-  .stock-card.low   .stock-num { color:#d97706; }
-  .stock-card.full  .stock-num { color:#dc2626; }
-  .stock-card .stock-lbl { font-size:.72rem; color:var(--muted); margin-top:4px; text-transform:uppercase; letter-spacing:.06em; }
-  .stock-card .stock-of  { font-size:.78rem; color:var(--muted); margin-top:2px; }
-
-  /* admin stock manager */
-  .stock-mgr { background:var(--white); border-radius:20px; padding:24px; box-shadow:var(--shadow); margin-top:24px; }
-  .stock-mgr h3 { font-family:'Playfair Display',serif; margin-bottom:16px; }
-  .stock-input-row { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:14px; }
-  .stock-input-item { background:var(--pink-pale); border-radius:12px; padding:14px 16px; }
-  .stock-input-item label { font-size:.8rem; font-weight:600; color:var(--dark); display:block; margin-bottom:8px; }
-  .stock-input-item .stock-ctrl { display:flex; align-items:center; gap:8px; }
-  .stock-input-item .stock-ctrl button { width:32px;height:32px;border-radius:8px;border:1.5px solid #e8d5e8;background:white;cursor:pointer;font-size:1.1rem;color:var(--dark); font-weight:700; display:flex;align-items:center;justify-content:center; }
-  .stock-input-item .stock-ctrl button:hover { background:var(--pink-light); }
-  .stock-input-item .stock-val { flex:1;text-align:center;font-size:1.3rem;font-weight:700;color:var(--dark); }
-  .price-admin-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:14px; }
-  .price-admin-item { background:var(--pink-pale); border-radius:12px; padding:14px 16px; }
-  .price-admin-item label { display:block; margin-bottom:8px; font-size:.8rem; font-weight:600; }
-  .price-admin-item input { width:100%; background:white; }
-
-  /* responsive */
-  @media(max-width:640px){
-    nav { padding:0 16px; }
-    .nav-links .nav-btn span { display:none; }
-    table { font-size:.75rem; }
-    th, td { padding:8px 10px; }
-  }
-</style>
-</head>
-<body>
-
-<!-- ADMIN LOGIN OVERLAY -->
-<div id="admin-login-overlay">
-  <div class="admin-login-box">
-    <h3>Admin Login</h3>
-    <p>Masuk dengan akun admin Firebase</p>
-    <input type="email" id="admin-email-input" placeholder="Email admin..." style="width:100%;margin-bottom:10px;">
-    <input type="password" id="admin-pass-input" placeholder="Password admin..." style="width:100%;margin-bottom:12px;">
-    <button class="btn btn-pink" style="width:100%" onclick="checkAdminLogin()">Masuk</button>
-    <button class="btn btn-outline" style="width:100%;margin-top:8px" onclick="closeAdminOverlay()">Batal</button>
-    <p id="admin-err" style="color:#e87fa0;font-size:.8rem;margin-top:8px;display:none;">Password salah!</p>
-  </div>
-</div>
-
-<!-- DETAIL MODAL -->
-<div class="modal-overlay" id="detail-modal">
-  <div class="modal">
-    <h3>📋 Detail Pesanan</h3>
-    <div id="modal-content"></div>
-    <div class="action-btns" style="margin-top:20px;" id="modal-actions"></div>
-    <button onclick="closeModal()" class="btn btn-outline" style="margin-top:12px;width:100%">Tutup</button>
-  </div>
-</div>
-
-<!-- TOAST -->
-<div id="toast"></div>
-
-<button class="floating-wa" onclick="openWhatsAppAdmin('Halo Admin Velora, saya ingin bertanya tentang sewa papan ucapan.')" title="Hubungi Admin WhatsApp">💬</button>
-
-<!-- NAVBAR -->
-<nav>
-  <div class="nav-brand">
-    <span>✦</span> velora.id <span>Beauty Reflections</span>
-  </div>
-  <div class="nav-links">
-    <button class="nav-btn ghost" onclick="showPage('home')">Beranda</button>
-    <button class="nav-btn ghost" onclick="showPage('gallery')">Koleksi</button>
-    <button class="nav-btn ghost" onclick="showPage('cek')">Cek Tanggal</button>
-    <button class="nav-btn primary" onclick="showPage('pesan')">Pesan Sekarang</button>
-    <button class="nav-btn whatsapp" onclick="openWhatsAppAdmin('Halo Admin Velora, saya ingin bertanya tentang sewa papan ucapan.')">Hubungi Admin</button>
-    <button class="nav-btn ghost" id="admin-nav-btn" onclick="triggerAdmin()">⚙️ Admin</button>
-    <span class="admin-badge" id="admin-badge" style="display:none">ADMIN</span>
-  </div>
-</nav>
-
-<!-- ═══════════════ HOME ═══════════════ -->
-<div id="page-home" class="page active">
-  <div class="hero">
-    <img src="assets/logo.jpeg" alt="Velora.id" class="hero-logo-img" onerror="this.style.display='none'">
-    <h1>velora<em>.id</em></h1>
-    <p>Beauty Reflections — Sewa Papan Ucapan Wisuda & Event</p>
-    <div class="hero-cta">
-      <button class="btn btn-pink" onclick="showPage('pesan')">🌸 Pesan Sekarang</button>
-      <button class="btn btn-outline" onclick="showPage('cek')">📅 Cek Ketersediaan</button>
-      <button class="btn btn-outline" onclick="showPage('gallery')">🖼️ Lihat Koleksi</button>
-      <button class="btn btn-whatsapp" onclick="openWhatsAppAdmin('Halo Admin Velora, saya ingin bertanya tentang sewa papan ucapan.')">💬 Hubungi Admin</button>
-    </div>
-  </div>
-
-  <!-- Features -->
-  <div class="container">
-    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:20px;margin-bottom:48px;">
-      <div style="background:var(--white);border-radius:20px;padding:28px 20px;text-align:center;box-shadow:var(--shadow);">
-        <div style="font-size:2.4rem;margin-bottom:12px;">🪞</div>
-        <div style="font-family:'Playfair Display',serif;font-size:1rem;margin-bottom:6px;">Convex Mirror</div>
-        <div style="font-size:.82rem;color:var(--muted);">Tampilan elegan & modern, cocok untuk semua acara</div>
-      </div>
-      <div style="background:var(--white);border-radius:20px;padding:28px 20px;text-align:center;box-shadow:var(--shadow);">
-        <div style="font-size:2.4rem;margin-bottom:12px;">⭕</div>
-        <div style="font-family:'Playfair Display',serif;font-size:1rem;margin-bottom:6px;">Papan Bulat</div>
-        <div style="font-size:.82rem;color:var(--muted);">Desain melingkar cantik dengan dekorasi bunga</div>
-      </div>
-      <div style="background:var(--white);border-radius:20px;padding:28px 20px;text-align:center;box-shadow:var(--shadow);">
-        <div style="font-size:2.4rem;margin-bottom:12px;">🏛️</div>
-        <div style="font-family:'Playfair Display',serif;font-size:1rem;margin-bottom:6px;">Papan Kubah</div>
-        <div style="font-size:.82rem;color:var(--muted);">Bentuk arch klasik yang timeless dan elegan</div>
-      </div>
-      <div style="background:var(--white);border-radius:20px;padding:28px 20px;text-align:center;box-shadow:var(--shadow);">
-        <div style="font-size:2.4rem;margin-bottom:12px;">🌸</div>
-        <div style="font-family:'Playfair Display',serif;font-size:1rem;margin-bottom:6px;">Free Request</div>
-        <div style="font-size:.82rem;color:var(--muted);">Bebas request model & warna bunga favoritmu</div>
-      </div>
-    </div>
-
-    <!-- Quick prices -->
-    <h2 class="section-title">Harga Sewa</h2>
-    <p class="section-sub">Harga sudah termasuk dekorasi bunga & papan ucapan custom</p>
-    <div style="overflow-x:auto;margin-bottom:40px;">
-      <table style="border-radius:16px;overflow:hidden;box-shadow:var(--shadow);background:var(--white);width:100%;">
-        <thead>
-          <tr>
-            <th>Acara</th>
-            <th>Convex</th>
-            <th>Papan Bulat</th>
-            <th>Papan Kubah</th>
-            <th>Papan Gantung</th>
-          </tr>
-        </thead>
-        <tbody id="price-table-body"></tbody>
-      </table>
-    </div>
-  </div>
-</div>
-
-<!-- ═══════════════ GALLERY ═══════════════ -->
-<div id="page-gallery" class="page">
-  <div class="container">
-    <h2 class="section-title" style="margin-top:12px;">Koleksi Velora.id</h2>
-    <p class="section-sub">Banyak model lainnya di IG @velora.id — silakan SS & request ke admin 🌸</p>
-    <div class="gallery-grid">
-      <div class="gallery-card">
-        <img src="assets/foto1.jpeg" alt="Papan Kubah Pink">
-        <div class="caption">Papan Kubah · Pink · Sidang Wisuda</div>
-      </div>
-      <div class="gallery-card">
-        <img src="assets/foto2.jpeg" alt="Papan Kubah Red">
-        <div class="caption">Papan Kubah · Merah · Sidang Wisuda</div>
-      </div>
-      <div class="gallery-card">
-        <img src="assets/foto3.jpeg" alt="Convex Mirror Pink">
-        <div class="caption">Convex Mirror · Pink · Sidang Wisuda</div>
-      </div>
-      <div class="gallery-card">
-        <img src="assets/foto4.jpeg" alt="Convex Mirror Pink Indoor">
-        <div class="caption">Convex Mirror · Pink · Indoor Event</div>
-      </div>
-      <div class="gallery-card">
-        <img src="assets/foto5.jpeg" alt="Multiple Boards">
-        <div class="caption">Koleksi Lengkap · Berbagai Model</div>
-      </div>
-      <div class="gallery-card">
-        <img src="assets/foto6.jpeg?v=20260612" alt="Papan Gantung">
-        <div class="caption">Papan Gantung · Pink/Merah · Event & Wisuda</div>
-      </div>
-    </div>
-    <div class="note-box" style="margin-top:28px;max-width:480px;margin-left:auto;margin-right:auto;">
-      📸 <strong>Ingin model tertentu?</strong> Lihat koleksi lengkap di <strong>@velora.id</strong>, screenshot model yang disukai & kirim ke admin. <strong>Free request!</strong>
-    </div>
-  </div>
-</div>
-
-<!-- ═══════════════ CEK TANGGAL ═══════════════ -->
-<div id="page-cek" class="page">
-  <div class="container">
-    <h2 class="section-title" style="margin-top:12px;">Cek Ketersediaan</h2>
-    <p class="section-sub">Pilih tanggal untuk melihat apakah masih tersedia</p>
-    <div class="calendar-wrap">
-      <div class="cal-header">
-        <button class="cal-nav" onclick="prevMonth()">‹</button>
-        <h3 id="cal-month-label"></h3>
-        <button class="cal-nav" onclick="nextMonth()">›</button>
-      </div>
-      <div class="cal-grid" id="cal-days-names"></div>
-      <div class="cal-grid" id="cal-days"></div>
-      <div class="cal-legend">
-        <div class="legend-item"><div class="legend-dot" style="background:var(--pink)"></div> Hari ini</div>
-        <div class="legend-item"><div class="legend-dot" style="background:#ffe0e6"></div> Penuh/Blocked</div>
-        <div class="legend-item"><div class="legend-dot" style="background:linear-gradient(135deg,var(--pink-deep),var(--gold))"></div> Dipilih</div>
-      </div>
-    </div>
-    <div id="cek-result" style="max-width:560px;margin:0 auto;display:none;">
-      <!-- status banner -->
-      <div id="cek-banner"></div>
-      <!-- stock cards -->
-      <div id="cek-stock-wrap" style="margin-top:16px;display:none;">
-        <p style="font-family:'Playfair Display',serif;font-size:1rem;color:var(--dark);margin-bottom:4px;text-align:center;">Ketersediaan Papan</p>
-        <p style="font-size:.8rem;color:var(--muted);text-align:center;margin-bottom:12px;">Stok papan pada tanggal yang kamu pilih</p>
-        <div class="stock-grid" id="cek-stock-grid"></div>
-      </div>
-    </div>
-    <div style="text-align:center;margin-top:20px;">
-      <button class="btn btn-pink" onclick="showPage('pesan')">Pesan Sekarang 🌸</button>
-    </div>
-  </div>
-</div>
-
-<!-- ═══════════════ FORM PESANAN ═══════════════ -->
-<div id="page-pesan" class="page">
-  <div class="container">
-    <h2 class="section-title" style="margin-top:12px;">Form Pemesanan</h2>
-    <p class="section-sub">Isi data dengan lengkap untuk memproses pesananmu</p>
-    <div class="form-card">
-      <div class="form-grid">
-        <div class="form-group full">
-          <label>Nama Penyewa <span class="req">*</span></label>
-          <input type="text" id="f-nama" placeholder="Nama lengkap...">
-        </div>
-        <div class="form-group">
-          <label>No. HP / WhatsApp <span class="req">*</span></label>
-          <input type="tel" id="f-hp" placeholder="08xxxxxxxxxx">
-        </div>
-        <div class="form-group">
-          <label>Identitas <span class="req">*</span></label>
-          <select id="f-id">
-            <option value="">Pilih identitas...</option>
-            <option>KTP</option>
-            <option>SIM</option>
-            <option>KTM</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Tanggal Sewa <span class="req">*</span></label>
-          <input type="date" id="f-tgl">
-        </div>
-        <div class="form-group">
-          <label>Jam Sewa <span class="req">*</span></label>
-          <input type="time" id="f-jam">
-        </div>
-        <div class="form-group">
-          <label>Durasi Sewa <span class="req">*</span></label>
-          <select id="f-durasi">
-            <option value="">Pilih durasi...</option>
-            <option value="6 Jam">6 Jam</option>
-            <option value="1 Hari">1 Hari</option>
-            <option value="Hubungi Admin">Lain-lain (hubungi admin)</option>
-          </select>
-        </div>
-        <div class="form-group full">
-          <label>Lokasi Acara <span class="req">*</span></label>
-          <input type="text" id="f-lokasi" placeholder="Alamat lengkap lokasi acara...">
-        </div>
-        <div class="form-group">
-          <label>Warna Bunga <span class="req">*</span></label>
-          <select id="f-warna">
-            <option value="">Pilih warna...</option>
-            <option>Pink</option>
-            <option>Merah</option>
-            <option>Biru</option>
-            <option>Coklat/Cream</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Kebutuhan Acara <span class="req">*</span></label>
-          <select id="f-acara" onchange="updatePrice()">
-            <option value="">Pilih acara...</option>
-            <option>Sidang</option>
-            <option>Wedding</option>
-            <option>Lamaran</option>
-            <option>Event</option>
-          </select>
-        </div>
-        <div class="form-group full">
-          <label>Jenis Papan <span class="req">*</span></label>
-          <select id="f-papan" onchange="handleBoardChange()">
-            <option value="">Pilih jenis papan...</option>
-            <option value="Convex">Convex Mirror</option>
-            <option value="Papan Bulat">Papan Bulat</option>
-            <option value="Papan Kubah">Papan Kubah</option>
-            <option value="Papan Gantung">Papan Gantung</option>
-          </select>
-        </div>
-        <div class="form-group full" id="price-group" style="display:none">
-          <label>Harga Sewa</label>
-          <div class="price-display">
-            <span class="label">Total biaya sewa</span>
-            <span class="amount" id="price-show"><span>Rp </span>—</span>
-          </div>
-        </div>
-        <div class="form-group full">
-          <label>Ucapan / Tulisan di Papan <span class="req">*</span></label>
-          <textarea id="f-ucapan" placeholder="Contoh: Congratulations Unofficially&#10;Muhammad Rizki, S.M.&#10;Selamat atas gelar barunya..."></textarea>
-        </div>
-      </div>
-
-      <!-- Payment -->
-      <div class="payment-box">
-        <h4>💳 Pembayaran QRIS</h4>
-        <div class="qris-box">
-          <img src="assets/qris.jpeg?v=20260612" alt="QRIS Velora.id" class="qris-img">
-          <div style="font-size:.9rem;color:var(--gold-light);font-weight:600;">VELORA.ID</div>
-          <div style="font-size:.78rem;color:rgba(255,255,255,0.7);margin-top:3px;">Scan QRIS untuk DP 50% atau pelunasan 100%</div>
-        </div>
-        <p class="payment-nb">
-          <strong>NB:</strong> Order minimal harus DP 50% atau bisa lunas 100% dari harga sewa. Jika pesan tapi tidak melakukan minimal DP dianggap tidak pesan.<br>
-          Kirim bukti DP/Pelunasan ke admin Velora.id.
-        </p>
-      </div>
-
-      <div class="note-box" style="margin-bottom:20px;">
-        📸 Banyak model di IG <strong>@velora.id</strong>, silakan SS & request ke admin. <strong>Free request!</strong>
-      </div>
-
-      <button class="btn btn-pink" style="width:100%;padding:14px;font-size:1rem;" onclick="submitOrder()">
-        🌸 Konfirmasi Pesanan
-      </button>
-    </div>
-  </div>
-</div>
-
-<!-- ═══════════════ SUKSES ═══════════════ -->
-<div id="page-sukses" class="page">
-  <div class="container">
-    <div class="success-card">
-      <div class="success-icon">🎉</div>
-      <h2>Pesanan Diterima!</h2>
-      <p>Terima kasih telah memesan di <strong>Velora.id</strong>. Pesananmu sudah kami catat. Jangan lupa kirim bukti DP/Pelunasan ke admin ya!</p>
-      <div class="order-summary" id="success-summary"></div>
-      <button class="btn btn-whatsapp" id="wa-success-btn" style="width:100%;margin-bottom:12px;display:none;justify-content:center;">💬 Kirim Detail Pesanan ke Admin</button>
-      <div class="payment-box" style="margin-top:16px;">
-        <h4>💳 Bayar DP/Pelunasan via QRIS</h4>
-        <div class="qris-box">
-          <img src="assets/qris.jpeg?v=20260612" alt="QRIS Velora.id" class="qris-img">
-          <div style="font-size:.9rem;color:var(--gold-light);font-weight:600;">VELORA.ID</div>
-          <div style="font-size:.78rem;color:rgba(255,255,255,0.7);margin-top:3px;">Scan QRIS, lalu kirim bukti pembayaran ke admin.</div>
-        </div>
-      </div>
-      <button class="btn btn-pink" style="margin-top:20px;width:100%" onclick="showPage('home')">Kembali ke Beranda</button>
-    </div>
-  </div>
-</div>
-
-<!-- ═══════════════ ADMIN PANEL ═══════════════ -->
-<div id="page-admin" class="page">
-  <div class="admin-wrap">
-    <div class="admin-header">
-      <h2>Panel Admin Velora.id</h2>
-      <button class="btn btn-outline" onclick="adminLogout()" style="font-size:.82rem;">Keluar Admin</button>
-    </div>
-
-    <div class="stats-row" id="stats-row"></div>
-
-    <!-- Blocked Dates Manager -->
-    <div class="blocked-mgr">
-      <h3>🚫 Kelola Tanggal Blocked</h3>
-      <div class="blocked-list" id="blocked-list-display"></div>
-      <div style="display:flex;gap:10px;">
-        <input type="date" id="block-date-input" style="flex:1;">
-        <button class="btn btn-pink" onclick="addBlockedDate()">+ Block Tanggal</button>
-      </div>
-    </div>
-
-    <!-- Stock Manager -->
-    <div class="stock-mgr">
-      <h3>📦 Kelola Stok Papan</h3>
-      <p style="font-size:.83rem;color:var(--muted);margin-bottom:16px;">Set total unit yang kamu miliki untuk setiap jenis papan. Stok tersisa dihitung otomatis dari pesanan aktif per tanggal.</p>
-      <div class="stock-input-row" id="stock-input-row"></div>
-      <button class="btn btn-pink" style="margin-top:16px;font-size:.85rem;" onclick="saveStock()">💾 Simpan Stok</button>
-    </div>
-
-    <div class="stock-mgr">
-      <h3>💰 Kelola Harga Sewa</h3>
-      <p style="font-size:.83rem;color:var(--muted);margin-bottom:16px;">Ubah harga sewa per acara dan jenis papan. Harga di halaman pelanggan akan ikut berubah setelah disimpan.</p>
-      <div class="price-admin-grid" id="price-admin-grid"></div>
-      <button class="btn btn-pink" style="margin-top:16px;font-size:.85rem;" onclick="savePrices()">💾 Simpan Harga</button>
-    </div>
-
-    <!-- Orders Table -->
-    <div class="order-table-wrap" style="margin-top:24px;">
-      <div class="table-header">
-        <h3>📋 Rekap Pesanan</h3>
-        <div class="filter-row">
-          <select class="filter-select" id="filter-status" onchange="renderTable()">
-            <option value="">Semua Status</option>
-            <option value="Pending">Pending</option>
-            <option value="DP">Sudah DP</option>
-            <option value="Lunas">Lunas</option>
-            <option value="Batal">Batal</option>
-          </select>
-          <button class="btn btn-pink" style="font-size:.8rem;padding:7px 16px" onclick="exportCSV()">📥 Export CSV</button>
-        </div>
-      </div>
-      <div style="overflow-x:auto;">
-        <table>
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Nama</th>
-              <th>Tanggal</th>
-              <th>Acara</th>
-              <th>Papan</th>
-              <th>Harga</th>
-              <th>Status</th>
-              <th>Aksi</th>
-            </tr>
-          </thead>
-          <tbody id="orders-tbody"></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-</div>
-
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-<script src="velora-firebase-app.js?v=20260612"></script>
-</body>
-</html>
-
-
+document.getElementById('admin-pass-input').addEventListener('keydown',e=>{if(e.key==='Enter')checkAdminLogin();});
+document.getElementById('admin-email-input').addEventListener('keydown',e=>{if(e.key==='Enter')checkAdminLogin();});
+renderPriceTable();
+updateColorOptions();
+startRealtimeData();
+renderCalendar();
 
 
 
