@@ -390,6 +390,12 @@
   .price-admin-item { background:var(--pink-pale); border-radius:12px; padding:14px 16px; }
   .price-admin-item label { display:block; margin-bottom:8px; font-size:.8rem; font-weight:600; }
   .price-admin-item input { width:100%; background:white; }
+  .content-admin-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; }
+  .content-admin-item { background:var(--pink-pale); border-radius:12px; padding:14px 16px; }
+  .content-admin-item.full { grid-column:1/-1; }
+  .content-admin-item label { display:block; margin-bottom:8px; font-size:.8rem; font-weight:600; }
+  .content-admin-item input, .content-admin-item textarea { width:100%; background:white; }
+  .gallery-admin-row { display:grid; grid-template-columns:1fr 1.3fr; gap:10px; margin-bottom:10px; }
 
   /* responsive */
   @media(max-width:640px){
@@ -509,8 +515,8 @@
 <div id="page-gallery" class="page">
   <div class="container">
     <h2 class="section-title" style="margin-top:12px;">Koleksi Velora.id</h2>
-    <p class="section-sub">Banyak model lainnya di IG @velora.id — silakan SS & request ke admin 🌸</p>
-    <div class="gallery-grid">
+    <p class="section-sub" id="gallery-subtitle">Banyak model lainnya di IG @velora.id — silakan SS & request ke admin 🌸</p>
+    <div class="gallery-grid" id="gallery-grid">
       <div class="gallery-card">
         <img src="assets/foto1.jpeg" alt="Papan Kubah Pink">
         <div class="caption">Papan Kubah · Pink · Sidang Wisuda</div>
@@ -536,7 +542,7 @@
         <div class="caption">Papan Gantung · Pink/Merah · Event & Wisuda</div>
       </div>
     </div>
-    <div class="note-box" style="margin-top:28px;max-width:480px;margin-left:auto;margin-right:auto;">
+    <div class="note-box" id="gallery-note" style="margin-top:28px;max-width:480px;margin-left:auto;margin-right:auto;">
       📸 <strong>Ingin model tertentu?</strong> Lihat koleksi lengkap di <strong>@velora.id</strong>, screenshot model yang disukai & kirim ke admin. <strong>Free request!</strong>
     </div>
   </div>
@@ -602,21 +608,16 @@
           </select>
         </div>
         <div class="form-group">
-          <label>Tanggal Sewa <span class="req">*</span></label>
-          <input type="date" id="f-tgl">
+          <label>Mulai Sewa <span class="req">*</span></label>
+          <input type="date" id="f-tgl-mulai" onchange="handleRentDateChange()">
+        </div>
+        <div class="form-group">
+          <label>Selesai Sewa <span class="req">*</span></label>
+          <input type="date" id="f-tgl-selesai" onchange="handleRentDateChange()">
         </div>
         <div class="form-group">
           <label>Jam Sewa <span class="req">*</span></label>
           <input type="time" id="f-jam">
-        </div>
-        <div class="form-group">
-          <label>Durasi Sewa <span class="req">*</span></label>
-          <select id="f-durasi">
-            <option value="">Pilih durasi...</option>
-            <option value="6 Jam">6 Jam</option>
-            <option value="1 Hari">1 Hari</option>
-            <option value="Hubungi Admin">Lain-lain (hubungi admin)</option>
-          </select>
         </div>
         <div class="form-group full">
           <label>Lokasi Acara <span class="req">*</span></label>
@@ -658,6 +659,7 @@
             <span class="label">Total biaya sewa</span>
             <span class="amount" id="price-show"><span>Rp </span>—</span>
           </div>
+          <div id="price-note" style="font-size:.78rem;color:var(--muted);margin-top:6px;"></div>
         </div>
         <div class="form-group full">
           <label>Ucapan / Tulisan di Papan <span class="req">*</span></label>
@@ -741,10 +743,56 @@
     </div>
 
     <div class="stock-mgr">
+      <h3>📅 Stok Manual per Tanggal</h3>
+      <p style="font-size:.83rem;color:var(--muted);margin-bottom:16px;">Pilih tanggal tertentu lalu isi stok papan yang tersedia pada tanggal itu. Jika stok khusus dihapus, tanggal tersebut kembali mengikuti stok total.</p>
+      <div class="content-admin-grid">
+        <div class="content-admin-item full">
+          <label>Tanggal Stok</label>
+          <input type="date" id="daily-stock-date" onchange="renderDailyStockInputs()">
+          <div id="daily-stock-hint" style="font-size:.78rem;color:var(--muted);margin-top:6px;"></div>
+        </div>
+      </div>
+      <div class="stock-input-row" id="daily-stock-input-row" style="margin-top:14px;"></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;">
+        <button class="btn btn-pink" style="font-size:.85rem;" onclick="saveDailyStock()">💾 Simpan Stok Tanggal</button>
+        <button class="btn btn-outline" style="font-size:.85rem;color:var(--dark);border-color:#e8d5e8;" onclick="clearDailyStock()">Hapus Stok Khusus</button>
+      </div>
+    </div>
+
+    <div class="stock-mgr">
       <h3>💰 Kelola Harga Sewa</h3>
       <p style="font-size:.83rem;color:var(--muted);margin-bottom:16px;">Ubah harga sewa per acara dan jenis papan. Harga di halaman pelanggan akan ikut berubah setelah disimpan.</p>
       <div class="price-admin-grid" id="price-admin-grid"></div>
       <button class="btn btn-pink" style="margin-top:16px;font-size:.85rem;" onclick="savePrices()">💾 Simpan Harga</button>
+    </div>
+
+    <div class="stock-mgr">
+      <h3>📝 Kelola Konten Website</h3>
+      <p style="font-size:.83rem;color:var(--muted);margin-bottom:16px;">Ubah nomor WhatsApp, teks koleksi, QRIS, dan kartu galeri. Untuk gambar lokal, tulis path seperti <strong>assets/foto6.jpeg</strong>.</p>
+      <div class="content-admin-grid">
+        <div class="content-admin-item">
+          <label>Nomor WhatsApp Admin</label>
+          <input id="content-whatsapp" placeholder="6285717835248">
+        </div>
+        <div class="content-admin-item">
+          <label>Path / URL QRIS</label>
+          <input id="content-qris" placeholder="assets/qris.jpeg">
+        </div>
+        <div class="content-admin-item full">
+          <label>Subjudul Koleksi</label>
+          <textarea id="content-gallery-subtitle" rows="2"></textarea>
+        </div>
+        <div class="content-admin-item full">
+          <label>Catatan Koleksi</label>
+          <textarea id="content-gallery-note" rows="3"></textarea>
+        </div>
+        <div class="content-admin-item full">
+          <label>Daftar Galeri</label>
+          <div id="gallery-admin-list"></div>
+          <button class="btn btn-outline" style="margin-top:8px;font-size:.82rem;color:var(--dark);border-color:#e8d5e8;" onclick="addGalleryAdminRow()">+ Tambah Foto</button>
+        </div>
+      </div>
+      <button class="btn btn-pink" style="margin-top:16px;font-size:.85rem;" onclick="saveContent()">💾 Simpan Konten</button>
     </div>
 
     <!-- Orders Table -->
