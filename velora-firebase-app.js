@@ -66,9 +66,10 @@ function mergePriceMap(source={}){
 function mergeContent(source={}){
   return { ...DEFAULT_CONTENT, ...source, gallery: Array.isArray(source.gallery) ? source.gallery : DEFAULT_CONTENT.gallery };
 }
-function refresh(){ const a=document.querySelector('.page.active'); renderContent(); renderPriceTable(); updatePrice(); if(!a) return; if(a.id==='page-cek') renderCalendar(); if(a.id==='page-admin'&&isAdmin) renderAdmin(); }
+function refresh(){ const a=document.querySelector('.page.active'); renderContent(); renderPriceTable(); updatePrice(); updateAvailability(); if(!a) return; if(a.id==='page-cek') renderCalendar(); if(a.id==='page-admin'&&isAdmin) renderAdmin(); }
 function toDateStr(date){ return date.getFullYear()+'-'+String(date.getMonth()+1).padStart(2,'0')+'-'+String(date.getDate()).padStart(2,'0'); }
 function formatDate(d){ return d ? new Date(d+'T00:00:00').toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'}) : '-'; }
+function formatMoney(n){ return 'Rp '+(Number(n)||0).toLocaleString('id-ID'); }
 function dateRange(start,end){
   if(!start||!end) return [];
   const a=new Date(start+'T00:00:00'), b=new Date(end+'T00:00:00'), dates=[];
@@ -78,8 +79,11 @@ function dateRange(start,end){
 }
 function rentalDays(start,end){ return Math.max(1,dateRange(start,end).length); }
 function formatDateRange(start,end){ return start&&end&&start!==end ? `${formatDate(start)} - ${formatDate(end)}` : formatDate(start||end); }
+function compactDate(dateStr){ return String(dateStr || toDateStr(new Date())).replace(/-/g,''); }
 function orderMillis(o){ return o.createdAt?.toDate ? o.createdAt.toDate().getTime() : (o.createdAtText ? new Date(o.createdAtText).getTime() : 0); }
 function createdLabel(o){ return o.createdAt?.toDate ? o.createdAt.toDate().toLocaleString('id-ID') : (o.createdAtText ? new Date(o.createdAtText).toLocaleString('id-ID') : '-'); }
+function paidAmount(o){ return Number(o.paidAmount ?? o.dpAmount ?? 0); }
+function remainingAmount(o){ return Math.max(0,(Number(o.harga)||0)-paidAmount(o)); }
 
 function startRealtimeData(){
   if(!firebaseReady()){ toast('Isi konfigurasi Firebase dulu di file HTML.'); return; }
@@ -159,6 +163,7 @@ function checkDate(dateStr){
   if(startEl) startEl.value=dateStr;
   if(endEl&&!endEl.value) endEl.value=dateStr;
   updatePrice();
+  updateAvailability();
 }
 function renderPriceTable(){
   const tbody = document.getElementById('price-table-body');
@@ -179,6 +184,7 @@ function updateColorOptions(){
 function handleBoardChange(){
   updateColorOptions();
   updatePrice();
+  updateAvailability();
   if(document.getElementById('f-papan').value === 'Papan Gantung') toast('Papan Gantung hanya ready bunga Pink dan Merah.');
 }
 function handleRentDateChange(){
@@ -188,6 +194,31 @@ function handleRentDateChange(){
     if(!end.value || end.value<start.value) end.value=start.value;
   }
   updatePrice();
+  updateAvailability();
+}
+function getAvailabilityCheck(start,end,papan){
+  const dates=dateRange(start,end);
+  if(!start||!end||!papan) return { ready:null, dates, message:'Pilih tanggal sewa dan jenis papan dulu.' };
+  if(!dates.length) return { ready:false, dates, message:'Tanggal selesai tidak boleh lebih awal dari tanggal mulai.' };
+  const blocked=dates.filter(d=>blockedDates.includes(d));
+  if(blocked.length) return { ready:false, dates, blocked, message:'Tanggal '+blocked.map(formatDate).join(', ')+' sedang tidak tersedia.' };
+  const out=dates.filter(d=>(getStockOnDate(d)[papan]||0)<=0);
+  if(out.length) return { ready:false, dates, out, message:'Stok '+papan+' habis pada '+out.map(formatDate).join(', ')+'.' };
+  const minStock=Math.min(...dates.map(d=>getStockOnDate(d)[papan]||0));
+  return { ready:true, dates, minStock, message:`${papan} tersedia untuk ${dates.length} hari. Sisa stok terendah: ${minStock} unit.` };
+}
+function updateAvailability(){
+  const box=document.getElementById('availability-group'), banner=document.getElementById('availability-banner'), btn=document.getElementById('submit-order-btn');
+  if(!box||!banner) return;
+  const start=document.getElementById('f-tgl-mulai')?.value, end=document.getElementById('f-tgl-selesai')?.value, papan=document.getElementById('f-papan')?.value;
+  const check=getAvailabilityCheck(start,end,papan);
+  if(check.ready===null){ box.style.display='none'; if(btn) btn.disabled=false; return; }
+  box.style.display='block';
+  banner.className='status-banner '+(check.ready?'available':'unavailable');
+  banner.innerHTML=check.ready
+    ? `<strong>Stok tersedia.</strong><br>${check.message}`
+    : `<strong>Stok belum tersedia.</strong><br>${check.message}`;
+  if(btn) btn.disabled=!check.ready;
 }
 function updatePrice(){
   const a=document.getElementById('f-acara')?.value, p=document.getElementById('f-papan')?.value, g=document.getElementById('price-group');
@@ -213,6 +244,7 @@ function buildOrderWhatsAppMessage(order){
   return [
     'Halo Admin Velora, saya sudah membuat pesanan.',
     '',
+    `Kode Booking: ${order.bookingCode || order.id || '-'}`,
     `Nama: ${order.nama}`,
     `No. HP: ${order.hp}`,
     `Tanggal: ${formatDateRange(order.tanggalMulai || order.tanggal, order.tanggalSelesai || order.tanggal)}`,
@@ -222,8 +254,8 @@ function buildOrderWhatsAppMessage(order){
     `Acara: ${order.acara}`,
     `Jenis Papan: ${order.papan}`,
     `Warna Bunga: ${order.warna}`,
-    `Total Sewa: Rp ${order.harga.toLocaleString('id-ID')}`,
-    `Min. DP 50%: Rp ${Math.ceil(order.harga*0.5).toLocaleString('id-ID')}`,
+    `Total Sewa: ${formatMoney(order.harga)}`,
+    `Min. DP 50%: ${formatMoney(Math.ceil(order.harga*0.5))}`,
     '',
     `Ucapan: ${order.ucapan}`,
     '',
@@ -297,7 +329,9 @@ async function submitOrder(){
   const tanggalList=dateRange(tanggalMulai,tanggalSelesai), jumlahHari=tanggalList.length, harga=hargaSatuan*jumlahHari;
   if(!jumlahHari){ toast('Tanggal selesai tidak boleh lebih awal dari tanggal mulai.'); return; }
   if(papan === 'Papan Gantung' && !['Pink','Merah'].includes(warna)){ toast('Papan Gantung hanya tersedia bunga Pink dan Merah.'); return; }
-  const order={nama:document.getElementById('f-nama').value.trim(),hp:document.getElementById('f-hp').value.trim(),identitas:document.getElementById('f-id').value,tanggal:tanggalMulai,tanggalMulai,tanggalSelesai,tanggalList,jam:document.getElementById('f-jam').value,durasi:`${jumlahHari} Hari`,jumlahHari,lokasi:document.getElementById('f-lokasi').value.trim(),warna:document.getElementById('f-warna').value,acara,papan,hargaSatuan,harga,ucapan:document.getElementById('f-ucapan').value.trim(),status:'Pending',createdAt:firebase.firestore.FieldValue.serverTimestamp(),createdAtText:new Date().toISOString()};
+  const availability=getAvailabilityCheck(tanggalMulai,tanggalSelesai,papan);
+  if(availability.ready===false){ toast(availability.message); updateAvailability(); return; }
+  const order={nama:document.getElementById('f-nama').value.trim(),hp:document.getElementById('f-hp').value.trim(),identitas:document.getElementById('f-id').value,tanggal:tanggalMulai,tanggalMulai,tanggalSelesai,tanggalList,jam:document.getElementById('f-jam').value,durasi:`${jumlahHari} Hari`,jumlahHari,lokasi:document.getElementById('f-lokasi').value.trim(),warna:document.getElementById('f-warna').value,acara,papan,hargaSatuan,harga,paidAmount:0,paymentStatus:'Belum Bayar',ucapan:document.getElementById('f-ucapan').value.trim(),status:'Pending',createdAt:firebase.firestore.FieldValue.serverTimestamp(),createdAtText:new Date().toISOString()};
   const newOrder=ordersRef.doc();
   try{
     await db.runTransaction(async tx=>{
@@ -305,6 +339,7 @@ async function submitOrder(){
       const stock=sd.exists&&sd.data().items?{...DEFAULT_STOCK,...sd.data().items}:DEFAULT_STOCK;
       const blocked=bd.exists&&Array.isArray(bd.data().dates)?bd.data().dates:[];
       const daily=dd.exists&&dd.data().items?dd.data().items:{};
+      order.bookingCode=`VEL-${compactDate(toDateStr(new Date()))}-${newOrder.id.slice(0,5).toUpperCase()}`;
       const usageDocs=await Promise.all(tanggalList.map(d=>tx.get(usageRef.doc(d))));
       for(let i=0;i<tanggalList.length;i++){
         const d=tanggalList[i], counts=usageDocs[i].exists&&usageDocs[i].data().counts?usageDocs[i].data().counts:{};
@@ -319,7 +354,7 @@ async function submitOrder(){
       });
     });
   }catch(e){ if(String(e.message).startsWith('blocked:')) toast('Tanggal '+formatDate(e.message.split(':')[1])+' sedang tidak tersedia.'); else if(String(e.message).startsWith('out:')) toast('Stok papan ini habis pada '+formatDate(e.message.split(':')[1])+'.'); else err(e); return; }
-  document.getElementById('success-summary').innerHTML=`<div class="row"><span>Nama</span><span>${order.nama}</span></div><div class="row"><span>Tanggal</span><span>${formatDateRange(order.tanggalMulai,order.tanggalSelesai)} · ${order.jam}</span></div><div class="row"><span>Jenis</span><span>${order.papan} · ${order.acara}</span></div><div class="row"><span>Lokasi</span><span>${order.lokasi}</span></div><div class="row"><span>Durasi</span><span>${order.jumlahHari} hari</span></div><div class="row"><span>Harga / hari</span><span>Rp ${order.hargaSatuan.toLocaleString('id-ID')}</span></div><div class="row"><span>Total Sewa</span><span>Rp ${order.harga.toLocaleString('id-ID')}</span></div><div class="row"><span>Min. DP (50%)</span><span style="color:var(--pink-deep)">Rp ${Math.ceil(order.harga*0.5).toLocaleString('id-ID')}</span></div>`;
+  document.getElementById('success-summary').innerHTML=`<div class="row"><span>Kode Booking</span><span>${order.bookingCode}</span></div><div class="row"><span>Nama</span><span>${order.nama}</span></div><div class="row"><span>Tanggal</span><span>${formatDateRange(order.tanggalMulai,order.tanggalSelesai)} · ${order.jam}</span></div><div class="row"><span>Jenis</span><span>${order.papan} · ${order.acara}</span></div><div class="row"><span>Lokasi</span><span>${order.lokasi}</span></div><div class="row"><span>Durasi</span><span>${order.jumlahHari} hari</span></div><div class="row"><span>Harga / hari</span><span>${formatMoney(order.hargaSatuan)}</span></div><div class="row"><span>Total Sewa</span><span>${formatMoney(order.harga)}</span></div><div class="row"><span>Min. DP (50%)</span><span style="color:var(--pink-deep)">${formatMoney(Math.ceil(order.harga*0.5))}</span></div>`;
   const waMessage = buildOrderWhatsAppMessage(order);
   const waLink = getWhatsAppLink(waMessage);
   const waBtn = document.getElementById('wa-success-btn');
@@ -329,19 +364,19 @@ async function submitOrder(){
   }
   ['f-nama','f-hp','f-tgl-mulai','f-tgl-selesai','f-jam','f-lokasi','f-ucapan'].forEach(id=>document.getElementById(id).value='');
   ['f-id','f-warna','f-acara','f-papan'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('price-group').style.display='none'; showPage('sukses');
+  document.getElementById('price-group').style.display='none'; updateAvailability(); showPage('sukses');
   setTimeout(()=>window.open(waLink,'_blank'), 350);
 }
 
 function renderAdmin(){
-  const total=orders.length,pending=orders.filter(o=>o.status==='Pending').length,dp=orders.filter(o=>o.status==='DP').length,lunas=orders.filter(o=>o.status==='Lunas').length,revenue=orders.filter(o=>o.status!=='Batal').reduce((a,o)=>a+(Number(o.harga)||0),0);
-  document.getElementById('stats-row').innerHTML=`<div class="stat-card"><div class="num">${total}</div><div class="lbl">Total Pesanan</div></div><div class="stat-card"><div class="num" style="color:#856404">${pending}</div><div class="lbl">Pending</div></div><div class="stat-card"><div class="num" style="color:#084298">${dp}</div><div class="lbl">Sudah DP</div></div><div class="stat-card"><div class="num" style="color:#0a3622">${lunas}</div><div class="lbl">Lunas</div></div><div class="stat-card"><div class="num" style="font-size:1.2rem;color:var(--pink-deep)">Rp ${(revenue/1000).toFixed(0)}rb</div><div class="lbl">Total Revenue</div></div>`;
+  const total=orders.length,pending=orders.filter(o=>o.status==='Pending').length,dp=orders.filter(o=>o.status==='DP').length,lunas=orders.filter(o=>o.status==='Lunas').length,revenue=orders.filter(o=>o.status!=='Batal').reduce((a,o)=>a+(Number(o.harga)||0),0),paid=orders.filter(o=>o.status!=='Batal').reduce((a,o)=>a+paidAmount(o),0);
+  document.getElementById('stats-row').innerHTML=`<div class="stat-card"><div class="num">${total}</div><div class="lbl">Total Pesanan</div></div><div class="stat-card"><div class="num" style="color:#856404">${pending}</div><div class="lbl">Pending</div></div><div class="stat-card"><div class="num" style="color:#084298">${dp}</div><div class="lbl">Sudah DP</div></div><div class="stat-card"><div class="num" style="color:#0a3622">${lunas}</div><div class="lbl">Lunas</div></div><div class="stat-card"><div class="num" style="font-size:1.2rem;color:var(--pink-deep)">${formatMoney(paid)}</div><div class="lbl">Uang Masuk</div></div><div class="stat-card"><div class="num" style="font-size:1.2rem;color:var(--pink-deep)">${formatMoney(revenue)}</div><div class="lbl">Total Tagihan</div></div>`;
   renderBlockedList(); renderStockInputs(); renderDailyStockInputs(); renderPriceInputs(); renderContentInputs(); renderTable();
 }
 function renderTable(){
   const filter=document.getElementById('filter-status').value, filtered=filter?orders.filter(o=>o.status===filter):[...orders]; filtered.sort((a,b)=>orderMillis(b)-orderMillis(a));
   const tbody=document.getElementById('orders-tbody'); if(!filtered.length){tbody.innerHTML='<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--muted)">Belum ada pesanan</td></tr>';return;}
-  tbody.innerHTML=filtered.map((o,i)=>`<tr><td>${i+1}</td><td><strong>${o.nama}</strong><br><span style="color:var(--muted);font-size:.75rem">${o.hp}</span></td><td>${formatDateRange(o.tanggalMulai||o.tanggal,o.tanggalSelesai||o.tanggal)}<br><span style="color:var(--muted);font-size:.75rem">${o.jam} · ${o.jumlahHari || rentalDays(o.tanggalMulai||o.tanggal,o.tanggalSelesai||o.tanggal)} hari</span></td><td>${o.acara}</td><td>${o.papan}</td><td style="font-weight:600;color:var(--pink-deep)">Rp ${(Number(o.harga)||0).toLocaleString('id-ID')}</td><td><span class="badge badge-${String(o.status).toLowerCase().replace(' ','')}">${o.status}</span></td><td><div class="action-btns"><button class="action-btn confirm" onclick="viewOrder('${o.id}')">👁</button>${o.status==='Pending'?`<button class="action-btn dp" onclick="setStatus('${o.id}','DP')">DP</button>`:''}${o.status!=='Lunas'&&o.status!=='Batal'?`<button class="action-btn confirm" onclick="setStatus('${o.id}','Lunas')">Lunas</button>`:''}${o.status!=='Batal'?`<button class="action-btn cancel" onclick="setStatus('${o.id}','Batal')">Batal</button>`:''}<button class="action-btn delete" onclick="deleteOrder('${o.id}')">🗑</button></div></td></tr>`).join('');
+  tbody.innerHTML=filtered.map((o,i)=>`<tr><td>${i+1}</td><td><strong>${o.nama}</strong><br><span style="color:var(--muted);font-size:.75rem">${o.bookingCode || o.id}</span><br><span style="color:var(--muted);font-size:.75rem">${o.hp}</span></td><td>${formatDateRange(o.tanggalMulai||o.tanggal,o.tanggalSelesai||o.tanggal)}<br><span style="color:var(--muted);font-size:.75rem">${o.jam} · ${o.jumlahHari || rentalDays(o.tanggalMulai||o.tanggal,o.tanggalSelesai||o.tanggal)} hari</span></td><td>${o.acara}</td><td>${o.papan}</td><td style="font-weight:600;color:var(--pink-deep)">${formatMoney(o.harga)}<br><span style="color:#0a3622;font-size:.75rem">Masuk: ${formatMoney(paidAmount(o))}</span><br><span style="color:var(--muted);font-size:.75rem">Sisa: ${formatMoney(remainingAmount(o))}</span></td><td><span class="badge badge-${String(o.status).toLowerCase().replace(' ','')}">${o.status}</span></td><td><div class="action-btns"><button class="action-btn confirm" onclick="viewOrder('${o.id}')">👁</button>${o.status!=='Lunas'&&o.status!=='Batal'?`<button class="action-btn dp" onclick="setPaymentStatus('${o.id}','DP')">DP</button>`:''}${o.status!=='Lunas'&&o.status!=='Batal'?`<button class="action-btn confirm" onclick="setPaymentStatus('${o.id}','Lunas')">Lunas</button>`:''}${o.status!=='Batal'?`<button class="action-btn cancel" onclick="setStatus('${o.id}','Batal')">Batal</button>`:''}<button class="action-btn delete" onclick="deleteOrder('${o.id}')">🗑</button></div></td></tr>`).join('');
 }
 async function adjustUsageRange(tx,order,delta){
   const dates=order.tanggalList || dateRange(order.tanggalMulai||order.tanggal,order.tanggalSelesai||order.tanggal);
@@ -354,11 +389,21 @@ async function adjustUsageRange(tx,order,delta){
   });
 }
 async function setStatus(id,status){ const old=orders.find(o=>o.id===id); if(!old)return; await db.runTransaction(async tx=>{ if(old.status!=='Batal'&&status==='Batal') await adjustUsageRange(tx,old,-1); if(old.status==='Batal'&&status!=='Batal') await adjustUsageRange(tx,old,1); tx.update(ordersRef.doc(id),{status,updatedAt:firebase.firestore.FieldValue.serverTimestamp()}); }); toast('Status diubah ke '+status); }
+async function setPaymentStatus(id,status){
+  const old=orders.find(o=>o.id===id); if(!old)return;
+  const fallback=status==='Lunas' ? Number(old.harga)||0 : Math.max(paidAmount(old),Math.ceil((Number(old.harga)||0)*0.5));
+  const raw=prompt(status==='Lunas' ? 'Masukkan nominal pelunasan yang diterima:' : 'Masukkan nominal DP yang diterima:', fallback);
+  if(raw===null) return;
+  const amount=Math.max(0,Number(String(raw).replace(/[^\d]/g,''))||0);
+  const nextStatus=status==='Lunas'||amount>=Number(old.harga) ? 'Lunas' : 'DP';
+  await ordersRef.doc(id).update({status:nextStatus,paymentStatus:nextStatus==='Lunas'?'Lunas':'Sudah DP',paidAmount:amount,paidAt:firebase.firestore.FieldValue.serverTimestamp(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+  toast(nextStatus==='Lunas' ? 'Pembayaran ditandai lunas.' : 'DP berhasil dicatat.');
+}
 async function deleteOrder(id){ if(!confirm('Hapus pesanan ini?'))return; const old=orders.find(o=>o.id===id); await db.runTransaction(async tx=>{ if(old&&old.status!=='Batal') await adjustUsageRange(tx,old,-1); tx.delete(ordersRef.doc(id)); }); toast('Pesanan dihapus'); }
 function viewOrder(id){
   const o=orders.find(x=>x.id===id); if(!o)return;
-  document.getElementById('modal-content').innerHTML=`<div class="detail-row"><span class="key">Nama</span><span class="val">${o.nama}</span></div><div class="detail-row"><span class="key">No. HP</span><span class="val">${o.hp}</span></div><div class="detail-row"><span class="key">Identitas</span><span class="val">${o.identitas}</span></div><div class="detail-row"><span class="key">Tanggal</span><span class="val">${formatDateRange(o.tanggalMulai||o.tanggal,o.tanggalSelesai||o.tanggal)} · ${o.jam}</span></div><div class="detail-row"><span class="key">Durasi</span><span class="val">${o.jumlahHari || rentalDays(o.tanggalMulai||o.tanggal,o.tanggalSelesai||o.tanggal)} hari</span></div><div class="detail-row"><span class="key">Lokasi</span><span class="val">${o.lokasi}</span></div><div class="detail-row"><span class="key">Warna Bunga</span><span class="val">${o.warna}</span></div><div class="detail-row"><span class="key">Acara</span><span class="val">${o.acara}</span></div><div class="detail-row"><span class="key">Jenis Papan</span><span class="val">${o.papan}</span></div><div class="detail-row"><span class="key">Harga</span><span class="val" style="color:var(--pink-deep);font-weight:700">Rp ${(Number(o.harga)||0).toLocaleString('id-ID')}</span></div><div class="detail-row"><span class="key">Status</span><span class="val"><span class="badge badge-${String(o.status).toLowerCase()}">${o.status}</span></span></div><div class="detail-row"><span class="key">Ucapan</span><span class="val" style="white-space:pre-wrap">${o.ucapan}</span></div><div class="detail-row"><span class="key">Dipesan</span><span class="val">${createdLabel(o)}</span></div>`;
-  document.getElementById('modal-actions').innerHTML=`${o.status==='Pending'?`<button class="action-btn dp" onclick="setStatus('${o.id}','DP');closeModal()">Konfirmasi DP</button>`:''}${o.status!=='Lunas'&&o.status!=='Batal'?`<button class="action-btn confirm" onclick="setStatus('${o.id}','Lunas');closeModal()">Tandai Lunas</button>`:''}`;
+  document.getElementById('modal-content').innerHTML=`<div class="detail-row"><span class="key">Kode Booking</span><span class="val">${o.bookingCode || o.id}</span></div><div class="detail-row"><span class="key">Nama</span><span class="val">${o.nama}</span></div><div class="detail-row"><span class="key">No. HP</span><span class="val">${o.hp}</span></div><div class="detail-row"><span class="key">Identitas</span><span class="val">${o.identitas}</span></div><div class="detail-row"><span class="key">Tanggal</span><span class="val">${formatDateRange(o.tanggalMulai||o.tanggal,o.tanggalSelesai||o.tanggal)} · ${o.jam}</span></div><div class="detail-row"><span class="key">Durasi</span><span class="val">${o.jumlahHari || rentalDays(o.tanggalMulai||o.tanggal,o.tanggalSelesai||o.tanggal)} hari</span></div><div class="detail-row"><span class="key">Lokasi</span><span class="val">${o.lokasi}</span></div><div class="detail-row"><span class="key">Warna Bunga</span><span class="val">${o.warna}</span></div><div class="detail-row"><span class="key">Acara</span><span class="val">${o.acara}</span></div><div class="detail-row"><span class="key">Jenis Papan</span><span class="val">${o.papan}</span></div><div class="detail-row"><span class="key">Harga</span><span class="val" style="color:var(--pink-deep);font-weight:700">${formatMoney(o.harga)}</span></div><div class="detail-row"><span class="key">Uang Masuk</span><span class="val">${formatMoney(paidAmount(o))}</span></div><div class="detail-row"><span class="key">Sisa Bayar</span><span class="val">${formatMoney(remainingAmount(o))}</span></div><div class="detail-row"><span class="key">Status</span><span class="val"><span class="badge badge-${String(o.status).toLowerCase()}">${o.status}</span></span></div><div class="detail-row"><span class="key">Ucapan</span><span class="val" style="white-space:pre-wrap">${o.ucapan}</span></div><div class="detail-row"><span class="key">Dipesan</span><span class="val">${createdLabel(o)}</span></div>`;
+  document.getElementById('modal-actions').innerHTML=`${o.status!=='Lunas'&&o.status!=='Batal'?`<button class="action-btn dp" onclick="setPaymentStatus('${o.id}','DP');closeModal()">Catat DP</button><button class="action-btn confirm" onclick="setPaymentStatus('${o.id}','Lunas');closeModal()">Tandai Lunas</button>`:''}`;
   document.getElementById('detail-modal').classList.add('active');
 }
 function closeModal(){document.getElementById('detail-modal').classList.remove('active');}
@@ -417,7 +462,7 @@ async function savePrices(){
 }
 async function addBlockedDate(){ const d=document.getElementById('block-date-input').value; if(!d){toast('Pilih tanggal dulu');return;} if(!blockedDates.includes(d)){ await blockedRef.set({dates:[...blockedDates,d].sort()},{merge:true}); toast(formatDate(d)+' sudah diblocked'); } else toast('Tanggal sudah diblocked'); document.getElementById('block-date-input').value=''; }
 async function removeBlock(d){ await blockedRef.set({dates:blockedDates.filter(x=>x!==d)},{merge:true}); toast('Block dihapus: '+formatDate(d)); }
-function exportCSV(){ if(!orders.length){toast('Belum ada pesanan');return;} const header=['ID','Nama','HP','Identitas','Tanggal Mulai','Tanggal Selesai','Jam','Durasi Hari','Lokasi','Warna','Acara','Papan','Harga Per Hari','Harga Total','Ucapan','Status','Dibuat']; const rows=orders.map(o=>[o.id,o.nama,o.hp,o.identitas,o.tanggalMulai||o.tanggal,o.tanggalSelesai||o.tanggal,o.jam,o.jumlahHari||rentalDays(o.tanggalMulai||o.tanggal,o.tanggalSelesai||o.tanggal),'"'+o.lokasi+'"',o.warna,o.acara,o.papan,o.hargaSatuan||'',o.harga,'"'+String(o.ucapan||'').replace(/"/g,"'")+'"',o.status,createdLabel(o)]); const csv=[header,...rows].map(r=>r.join(',')).join('\n'); const a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv); a.download='velora_pesanan_'+new Date().toISOString().slice(0,10)+'.csv'; a.click(); toast('CSV berhasil diexport'); }
+function exportCSV(){ if(!orders.length){toast('Belum ada pesanan');return;} const header=['ID','Kode Booking','Nama','HP','Identitas','Tanggal Mulai','Tanggal Selesai','Jam','Durasi Hari','Lokasi','Warna','Acara','Papan','Harga Per Hari','Harga Total','Uang Masuk','Sisa Bayar','Ucapan','Status','Dibuat']; const rows=orders.map(o=>[o.id,o.bookingCode||'',o.nama,o.hp,o.identitas,o.tanggalMulai||o.tanggal,o.tanggalSelesai||o.tanggal,o.jam,o.jumlahHari||rentalDays(o.tanggalMulai||o.tanggal,o.tanggalSelesai||o.tanggal),'"'+o.lokasi+'"',o.warna,o.acara,o.papan,o.hargaSatuan||'',o.harga,paidAmount(o),remainingAmount(o),'"'+String(o.ucapan||'').replace(/"/g,"'")+'"',o.status,createdLabel(o)]); const csv=[header,...rows].map(r=>r.join(',')).join('\n'); const a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv); a.download='velora_pesanan_'+new Date().toISOString().slice(0,10)+'.csv'; a.click(); toast('CSV berhasil diexport'); }
 function copyText(text){ navigator.clipboard.writeText(text).catch(()=>{}); toast('Nomor '+text+' disalin!'); }
 
 document.getElementById('admin-pass-input').addEventListener('keydown',e=>{if(e.key==='Enter')checkAdminLogin();});
