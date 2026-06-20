@@ -30,7 +30,35 @@ const DEFAULT_CONTENT = {
     { src:'assets/foto4.jpeg', alt:'Convex Mirror Pink Indoor', caption:'Convex Mirror · Pink · Indoor Event' },
     { src:'assets/foto5.jpeg', alt:'Multiple Boards', caption:'Koleksi Lengkap · Berbagai Model' },
     { src:'assets/foto6.jpeg', alt:'Papan Gantung', caption:'Papan Gantung · Pink/Merah · Event & Wisuda' }
-  ]
+  ],
+  // ── Hero ──
+  heroLogo: 'assets/logo.jpeg',
+  heroTitleMain: 'velora',
+  heroTitleAccent: '.id',
+  heroSubtitle: 'Beauty Reflections — Sewa Papan Ucapan Wisuda & Event',
+  // ── Feature cards di beranda ──
+  features: [
+    { icon:'🪞', title:'Convex Mirror', desc:'Tampilan elegan & modern, cocok untuk semua acara' },
+    { icon:'⭕', title:'Papan Bulat', desc:'Desain melingkar cantik dengan dekorasi bunga' },
+    { icon:'🏛️', title:'Papan Kubah', desc:'Bentuk arch klasik yang timeless dan elegan' },
+    { icon:'🌸', title:'Free Request', desc:'Bebas request model & warna bunga favoritmu' }
+  ],
+  // ── Label & ikon jenis papan (key tetap, hanya tampilan) ──
+  boardTypes: {
+    'Convex': { label:'Convex Mirror', icon:'🪞' },
+    'Papan Bulat': { label:'Papan Bulat', icon:'⭕' },
+    'Papan Kubah': { label:'Papan Kubah', icon:'🏛️' },
+    'Papan Gantung': { label:'Papan Gantung', icon:'🪷' }
+  },
+  // ── Pilihan warna bunga ──
+  warnaOptions: ['Pink', 'Merah', 'Biru', 'Coklat/Cream'],
+  warnaOptionsGantung: ['Pink', 'Merah'],
+  // ── Teks lain ──
+  successTitle: 'Pesanan Diterima!',
+  successDesc: 'Terima kasih telah memesan di <strong>Velora.id</strong>. Pesananmu sudah kami catat. Jangan lupa kirim bukti DP/Pelunasan ke admin ya!',
+  paymentNote: '<strong>NB:</strong> Order minimal harus DP 50% atau bisa lunas 100% dari harga sewa. Jika pesan tapi tidak melakukan minimal DP dianggap tidak pesan.<br>Kirim bukti DP/Pelunasan ke admin Velora.id.',
+  waButtonText: 'Hubungi Admin',
+  waDefaultMessage: 'Halo Admin Velora, saya ingin bertanya tentang sewa papan ucapan.'
 };
 let siteContent = JSON.parse(JSON.stringify(DEFAULT_CONTENT));
 
@@ -64,8 +92,19 @@ function mergePriceMap(source={}){
   return merged;
 }
 function mergeContent(source={}){
-  return { ...DEFAULT_CONTENT, ...source, gallery: Array.isArray(source.gallery) ? source.gallery : DEFAULT_CONTENT.gallery };
+  const boardTypes = {};
+  Object.keys(DEFAULT_CONTENT.boardTypes).forEach(k => { boardTypes[k] = { ...DEFAULT_CONTENT.boardTypes[k], ...(source.boardTypes && source.boardTypes[k]) }; });
+  return {
+    ...DEFAULT_CONTENT,
+    ...source,
+    gallery: Array.isArray(source.gallery) && source.gallery.length ? source.gallery : DEFAULT_CONTENT.gallery,
+    features: Array.isArray(source.features) && source.features.length ? source.features : DEFAULT_CONTENT.features,
+    warnaOptions: Array.isArray(source.warnaOptions) && source.warnaOptions.length ? source.warnaOptions : DEFAULT_CONTENT.warnaOptions,
+    warnaOptionsGantung: Array.isArray(source.warnaOptionsGantung) && source.warnaOptionsGantung.length ? source.warnaOptionsGantung : DEFAULT_CONTENT.warnaOptionsGantung,
+    boardTypes
+  };
 }
+function papanList(){ return PAPAN_TYPES.map(p => ({ ...p, ...(siteContent.boardTypes && siteContent.boardTypes[p.key]) })); }
 function refresh(){ const a=document.querySelector('.page.active'); renderContent(); renderPriceTable(); updatePrice(); updateAvailability(); if(!a) return; if(a.id==='page-cek') renderCalendar(); if(a.id==='page-admin'&&isAdmin) renderAdmin(); }
 function toDateStr(date){ return date.getFullYear()+'-'+String(date.getMonth()+1).padStart(2,'0')+'-'+String(date.getDate()).padStart(2,'0'); }
 function formatDate(d){ return d ? new Date(d+'T00:00:00').toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'}) : '-'; }
@@ -157,7 +196,7 @@ function checkDate(dateStr){
   document.getElementById('cek-result').style.display='block';
   document.getElementById('cek-banner').innerHTML=blocked||allOut ? `<div class="status-banner unavailable"><strong>Maaf, tanggal ${formatDate(dateStr)} tidak tersedia.</strong><br>Silakan pilih tanggal lain.</div>` : `<div class="status-banner available"><strong>Tanggal ${formatDate(dateStr)} tersedia.</strong><br>Kamu bisa lanjut melakukan pemesanan.</div>`;
   document.getElementById('cek-stock-wrap').style.display='block';
-  document.getElementById('cek-stock-grid').innerHTML=PAPAN_TYPES.map(p=>{ const s=stock[p.key], total=stockTotal[p.key]||0; let cls='stock-card', text=''; if(blocked){cls+=' full';text='Tidak Tersedia';} else if(s===0){cls+=' full';text='Habis';} else if(s<=1){cls+=' low';text='Hampir Habis';} else {cls+=' ready';text='Tersedia';} return `<div class="${cls}"><div class="papan-icon">${p.icon}</div><div class="papan-name">${p.label}</div><div class="stock-num">${blocked?0:s}</div><div class="stock-lbl">${text}</div><div class="stock-of">dari ${total} unit</div></div>`; }).join('');
+  document.getElementById('cek-stock-grid').innerHTML=papanList().map(p=>{ const s=stock[p.key], total=stockTotal[p.key]||0; let cls='stock-card', text=''; if(blocked){cls+=' full';text='Tidak Tersedia';} else if(s===0){cls+=' full';text='Habis';} else if(s<=1){cls+=' low';text='Hampir Habis';} else {cls+=' ready';text='Tersedia';} return `<div class="${cls}"><div class="papan-icon">${p.icon}</div><div class="papan-name">${p.label}</div><div class="stock-num">${blocked?0:s}</div><div class="stock-lbl">${text}</div><div class="stock-of">dari ${total} unit</div></div>`; }).join('');
   const startEl=document.getElementById('f-tgl-mulai') || document.getElementById('f-tgl');
   const endEl=document.getElementById('f-tgl-selesai');
   if(startEl) startEl.value=dateStr;
@@ -168,7 +207,7 @@ function checkDate(dateStr){
 function renderPriceTable(){
   const tbody = document.getElementById('price-table-body');
   if(!tbody) return;
-  tbody.innerHTML = EVENT_TYPES.map(event => `<tr><td>${event}</td>${PAPAN_TYPES.map(p => `<td style="color:var(--pink-deep);font-weight:600">Rp ${(priceMap[event]?.[p.key] || 0).toLocaleString('id-ID')}</td>`).join('')}</tr>`).join('');
+  tbody.innerHTML = EVENT_TYPES.map(event => `<tr><td>${event}</td>${papanList().map(p => `<td style="color:var(--pink-deep);font-weight:600">Rp ${(priceMap[event]?.[p.key] || 0).toLocaleString('id-ID')}</td>`).join('')}</tr>`).join('');
 }
 function updateColorOptions(){
   const papan = document.getElementById('f-papan')?.value;
@@ -176,8 +215,8 @@ function updateColorOptions(){
   if(!warna) return;
   const current = warna.value;
   const options = papan === 'Papan Gantung'
-    ? ['', 'Pink', 'Merah']
-    : ['', 'Pink', 'Merah', 'Biru', 'Coklat/Cream'];
+    ? ['', ...(siteContent.warnaOptionsGantung || DEFAULT_CONTENT.warnaOptionsGantung)]
+    : ['', ...(siteContent.warnaOptions || DEFAULT_CONTENT.warnaOptions)];
   warna.innerHTML = options.map(v => `<option value="${v}">${v || 'Pilih warna...'}</option>`).join('');
   warna.value = options.includes(current) ? current : '';
 }
@@ -237,8 +276,8 @@ function getWhatsAppLink(message){
   const phone = String(siteContent.whatsapp || DEFAULT_CONTENT.whatsapp).replace(/\D/g,'');
   return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
 }
-function openWhatsAppAdmin(message='Halo Admin Velora, saya ingin bertanya tentang sewa papan ucapan.'){
-  window.open(getWhatsAppLink(message), '_blank');
+function openWhatsAppAdmin(message){
+  window.open(getWhatsAppLink(message || siteContent.waDefaultMessage || DEFAULT_CONTENT.waDefaultMessage), '_blank');
 }
 function buildOrderWhatsAppMessage(order){
   return [
@@ -268,6 +307,49 @@ function assetWithVersion(src){
   return `${src}?v=20260612`;
 }
 function renderContent(){
+  // Hero
+  const heroLogo=document.getElementById('hero-logo');
+  if(heroLogo) heroLogo.src=assetWithVersion(siteContent.heroLogo);
+  const heroMain=document.getElementById('hero-title-main');
+  if(heroMain) heroMain.textContent=siteContent.heroTitleMain;
+  const heroAccent=document.getElementById('hero-title-accent');
+  if(heroAccent) heroAccent.textContent=siteContent.heroTitleAccent;
+  const heroSub=document.getElementById('hero-subtitle');
+  if(heroSub) heroSub.textContent=siteContent.heroSubtitle;
+
+  // Feature cards
+  const featGrid=document.getElementById('features-grid');
+  if(featGrid){
+    featGrid.innerHTML=(siteContent.features || []).map(f=>`
+      <div style="background:var(--white);border-radius:20px;padding:28px 20px;text-align:center;box-shadow:var(--shadow);">
+        <div style="font-size:2.4rem;margin-bottom:12px;">${f.icon || ''}</div>
+        <div style="font-family:'Playfair Display',serif;font-size:1rem;margin-bottom:6px;">${f.title || ''}</div>
+        <div style="font-size:.82rem;color:var(--muted);">${f.desc || ''}</div>
+      </div>`).join('');
+  }
+
+  // Jenis papan select (form pesanan)
+  const papanSel=document.getElementById('f-papan');
+  if(papanSel){
+    const current=papanSel.value;
+    papanSel.innerHTML='<option value="">Pilih jenis papan...</option>'+papanList().map(p=>`<option value="${p.key}">${p.icon ? p.icon+' ' : ''}${p.label}</option>`).join('');
+    papanSel.value=current;
+  }
+
+  // Success page
+  const sTitle=document.getElementById('success-title');
+  if(sTitle) sTitle.textContent=siteContent.successTitle;
+  const sDesc=document.getElementById('success-desc');
+  if(sDesc) sDesc.innerHTML=siteContent.successDesc;
+
+  // Payment note
+  document.querySelectorAll('.payment-nb').forEach(el=>el.innerHTML=siteContent.paymentNote);
+
+  // WhatsApp button texts
+  document.querySelectorAll('.wa-btn-text').forEach(el=>el.textContent=siteContent.waButtonText);
+  const floatingWa=document.getElementById('floating-wa-btn');
+  if(floatingWa) floatingWa.title='Hubungi Admin WhatsApp';
+
   const subtitle=document.getElementById('gallery-subtitle');
   if(subtitle) subtitle.textContent=siteContent.gallerySubtitle;
   const note=document.getElementById('gallery-note');
@@ -287,9 +369,45 @@ function renderContentInputs(){
   if(!wa) return;
   wa.value=siteContent.whatsapp || '';
   document.getElementById('content-qris').value=siteContent.qrisSrc || '';
+  document.getElementById('content-wa-message').value=siteContent.waDefaultMessage || '';
+  document.getElementById('content-wa-btn-text').value=siteContent.waButtonText || '';
+  document.getElementById('content-hero-logo').value=siteContent.heroLogo || '';
+  document.getElementById('content-hero-title-main').value=siteContent.heroTitleMain || '';
+  document.getElementById('content-hero-title-accent').value=siteContent.heroTitleAccent || '';
+  document.getElementById('content-hero-subtitle').value=siteContent.heroSubtitle || '';
+  document.getElementById('content-success-title').value=siteContent.successTitle || '';
+  document.getElementById('content-success-desc').value=(siteContent.successDesc || '').replace(/<strong>/g,'').replace(/<\/strong>/g,'');
+  document.getElementById('content-payment-note').value=(siteContent.paymentNote || '').replace(/<strong>/g,'').replace(/<\/strong>/g,'').replace(/<br>/g,'\n');
+  document.getElementById('content-warna').value=(siteContent.warnaOptions || []).join(', ');
+  document.getElementById('content-warna-gantung').value=(siteContent.warnaOptionsGantung || []).join(', ');
   document.getElementById('content-gallery-subtitle').value=siteContent.gallerySubtitle || '';
   document.getElementById('content-gallery-note').value=(siteContent.galleryNote || '').replace(/<strong>/g,'').replace(/<\/strong>/g,'');
+  renderFeaturesAdminList();
+  renderBoardTypesAdminList();
   renderGalleryAdminList();
+}
+function renderFeaturesAdminList(){
+  const list=document.getElementById('features-admin-list');
+  if(!list) return;
+  list.innerHTML=(siteContent.features || []).map((f,i)=>`
+    <div class="gallery-admin-row" style="grid-template-columns:.6fr 1fr 1.6fr;">
+      <input id="feat-icon-${i}" value="${f.icon || ''}" placeholder="🪞">
+      <input id="feat-title-${i}" value="${f.title || ''}" placeholder="Judul fitur">
+      <input id="feat-desc-${i}" value="${f.desc || ''}" placeholder="Deskripsi singkat">
+    </div>`).join('');
+}
+function addFeatureAdminRow(){
+  siteContent.features=[...(siteContent.features || []), {icon:'✨', title:'Fitur Baru', desc:'Deskripsi fitur baru'}];
+  renderFeaturesAdminList();
+}
+function renderBoardTypesAdminList(){
+  const list=document.getElementById('board-types-admin-list');
+  if(!list) return;
+  list.innerHTML=papanList().map(p=>`
+    <div class="gallery-admin-row" style="grid-template-columns:.6fr 1fr;">
+      <input id="board-icon-${p.key}" value="${p.icon || ''}" placeholder="🪞">
+      <input id="board-label-${p.key}" value="${p.label || ''}" placeholder="Nama tampilan">
+    </div>`).join('');
 }
 function renderGalleryAdminList(){
   const list=document.getElementById('gallery-admin-list');
@@ -310,11 +428,38 @@ async function saveContent(){
     alt:document.getElementById(`gal-caption-${i}`)?.value.trim() || 'Koleksi Velora',
     caption:document.getElementById(`gal-caption-${i}`)?.value.trim() || ''
   })).filter(item=>item.src);
+  const features=(siteContent.features || []).map((f,i)=>({
+    icon:document.getElementById(`feat-icon-${i}`)?.value.trim() || f.icon,
+    title:document.getElementById(`feat-title-${i}`)?.value.trim() || f.title,
+    desc:document.getElementById(`feat-desc-${i}`)?.value.trim() || f.desc
+  })).filter(f=>f.title);
+  const boardTypes={};
+  PAPAN_TYPES.forEach(p=>{
+    boardTypes[p.key]={
+      icon:document.getElementById(`board-icon-${p.key}`)?.value.trim() || p.icon,
+      label:document.getElementById(`board-label-${p.key}`)?.value.trim() || p.label
+    };
+  });
+  const warnaOptions=document.getElementById('content-warna').value.split(',').map(v=>v.trim()).filter(Boolean);
+  const warnaOptionsGantung=document.getElementById('content-warna-gantung').value.split(',').map(v=>v.trim()).filter(Boolean);
   siteContent=mergeContent({
     whatsapp:document.getElementById('content-whatsapp').value.trim().replace(/\D/g,''),
     qrisSrc:document.getElementById('content-qris').value.trim() || DEFAULT_CONTENT.qrisSrc,
+    waDefaultMessage:document.getElementById('content-wa-message').value.trim() || DEFAULT_CONTENT.waDefaultMessage,
+    waButtonText:document.getElementById('content-wa-btn-text').value.trim() || DEFAULT_CONTENT.waButtonText,
+    heroLogo:document.getElementById('content-hero-logo').value.trim() || DEFAULT_CONTENT.heroLogo,
+    heroTitleMain:document.getElementById('content-hero-title-main').value.trim() || DEFAULT_CONTENT.heroTitleMain,
+    heroTitleAccent:document.getElementById('content-hero-title-accent').value.trim() || DEFAULT_CONTENT.heroTitleAccent,
+    heroSubtitle:document.getElementById('content-hero-subtitle').value.trim() || DEFAULT_CONTENT.heroSubtitle,
+    successTitle:document.getElementById('content-success-title').value.trim() || DEFAULT_CONTENT.successTitle,
+    successDesc:document.getElementById('content-success-desc').value.trim() || DEFAULT_CONTENT.successDesc,
+    paymentNote:document.getElementById('content-payment-note').value.trim().replace(/\n/g,'<br>') || DEFAULT_CONTENT.paymentNote,
+    warnaOptions:warnaOptions.length ? warnaOptions : DEFAULT_CONTENT.warnaOptions,
+    warnaOptionsGantung:warnaOptionsGantung.length ? warnaOptionsGantung : DEFAULT_CONTENT.warnaOptionsGantung,
     gallerySubtitle:document.getElementById('content-gallery-subtitle').value.trim(),
     galleryNote:document.getElementById('content-gallery-note').value.trim(),
+    features,
+    boardTypes,
     gallery
   });
   await contentRef.set({...siteContent, updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
@@ -408,7 +553,7 @@ function viewOrder(id){
 }
 function closeModal(){document.getElementById('detail-modal').classList.remove('active');}
 function renderBlockedList(){ const list=document.getElementById('blocked-list-display'); list.innerHTML=blockedDates.length?blockedDates.map(d=>`<div class="blocked-chip">${formatDate(d)} <button onclick="removeBlock('${d}')">×</button></div>`).join(''):'<span style="color:var(--muted);font-size:.82rem">Belum ada tanggal yang diblocked</span>'; }
-function renderStockInputs(){ const row=document.getElementById('stock-input-row'); if(!row)return; row.innerHTML=PAPAN_TYPES.map(p=>`<div class="stock-input-item"><label>${p.icon} ${p.label}</label><div class="stock-ctrl"><button onclick="changeStock('${p.key}', -1)">−</button><span class="stock-val" id="sv-${p.key.replace(' ','-')}">${stockTotal[p.key]||0}</span><button onclick="changeStock('${p.key}', 1)">+</button></div></div>`).join(''); }
+function renderStockInputs(){ const row=document.getElementById('stock-input-row'); if(!row)return; row.innerHTML=papanList().map(p=>`<div class="stock-input-item"><label>${p.icon} ${p.label}</label><div class="stock-ctrl"><button onclick="changeStock('${p.key}', -1)">−</button><span class="stock-val" id="sv-${p.key.replace(' ','-')}">${stockTotal[p.key]||0}</span><button onclick="changeStock('${p.key}', 1)">+</button></div></div>`).join(''); }
 function changeStock(key,delta){ stockTotal[key]=Math.max(0,(stockTotal[key]||0)+delta); const el=document.getElementById('sv-'+key.replace(' ','-')); if(el)el.textContent=stockTotal[key]; }
 async function saveStock(){ await stockRef.set({items:stockTotal,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}); toast('Stok berhasil disimpan!'); }
 function dailyStockInputId(key){ return 'dsv-'+key.replace(/\s+/g,'-'); }
@@ -417,7 +562,7 @@ function renderDailyStockInputs(){
   if(!dateEl||!row) return;
   const d=dateEl.value || toDateStr(today), base=dailyStockByDate[d] ? {...DEFAULT_STOCK,...dailyStockByDate[d]} : stockTotal;
   dateEl.value=d;
-  row.innerHTML=PAPAN_TYPES.map(p=>`<div class="stock-input-item"><label>${p.icon} ${p.label}</label><input id="${dailyStockInputId(p.key)}" type="number" min="0" step="1" value="${base[p.key]||0}" style="width:100%;background:white;"></div>`).join('');
+  row.innerHTML=papanList().map(p=>`<div class="stock-input-item"><label>${p.icon} ${p.label}</label><input id="${dailyStockInputId(p.key)}" type="number" min="0" step="1" value="${base[p.key]||0}" style="width:100%;background:white;"></div>`).join('');
   if(hint) hint.textContent=dailyStockByDate[d] ? 'Tanggal ini memakai stok khusus.' : 'Tanggal ini masih mengikuti stok total.';
 }
 async function saveDailyStock(){
@@ -443,7 +588,7 @@ function priceInputId(event, papan){ return `price-${event}-${papan}`.replace(/[
 function renderPriceInputs(){
   const grid=document.getElementById('price-admin-grid');
   if(!grid) return;
-  grid.innerHTML=EVENT_TYPES.map(event => PAPAN_TYPES.map(p => {
+  grid.innerHTML=EVENT_TYPES.map(event => papanList().map(p => {
     const id=priceInputId(event,p.key);
     return `<div class="price-admin-item"><label>${event} - ${p.label}</label><input id="${id}" type="number" min="0" step="1000" value="${priceMap[event]?.[p.key] || 0}"></div>`;
   }).join('')).join('');
