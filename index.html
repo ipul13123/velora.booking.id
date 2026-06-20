@@ -895,7 +895,8 @@
             <option value="Lunas">Lunas</option>
             <option value="Batal">Batal</option>
           </select>
-          <button class="btn btn-pink" style="font-size:.8rem;padding:7px 16px" onclick="exportCSV()">📥 Export CSV</button>
+          <button class="btn btn-pink" style="font-size:.8rem;padding:7px 16px" onclick="exportXLSX()">📥 Export Excel (.xlsx)</button>
+          <button class="btn btn-outline" style="font-size:.8rem;padding:7px 16px;color:var(--dark);border-color:#e8d5e8;" onclick="exportCSV()">📄 Export CSV</button>
         </div>
       </div>
       <div style="overflow-x:auto;">
@@ -922,6 +923,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="velora-firebase-app.js?v=20260612"></script>
 </body>
 </html>

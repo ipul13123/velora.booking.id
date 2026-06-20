@@ -607,7 +607,43 @@ async function savePrices(){
 }
 async function addBlockedDate(){ const d=document.getElementById('block-date-input').value; if(!d){toast('Pilih tanggal dulu');return;} if(!blockedDates.includes(d)){ await blockedRef.set({dates:[...blockedDates,d].sort()},{merge:true}); toast(formatDate(d)+' sudah diblocked'); } else toast('Tanggal sudah diblocked'); document.getElementById('block-date-input').value=''; }
 async function removeBlock(d){ await blockedRef.set({dates:blockedDates.filter(x=>x!==d)},{merge:true}); toast('Block dihapus: '+formatDate(d)); }
-function exportCSV(){ if(!orders.length){toast('Belum ada pesanan');return;} const header=['ID','Kode Booking','Nama','HP','Identitas','Tanggal Mulai','Tanggal Selesai','Jam','Durasi Hari','Lokasi','Warna','Acara','Papan','Harga Per Hari','Harga Total','Uang Masuk','Sisa Bayar','Ucapan','Status','Dibuat']; const rows=orders.map(o=>[o.id,o.bookingCode||'',o.nama,o.hp,o.identitas,o.tanggalMulai||o.tanggal,o.tanggalSelesai||o.tanggal,o.jam,o.jumlahHari||rentalDays(o.tanggalMulai||o.tanggal,o.tanggalSelesai||o.tanggal),'"'+o.lokasi+'"',o.warna,o.acara,o.papan,o.hargaSatuan||'',o.harga,paidAmount(o),remainingAmount(o),'"'+String(o.ucapan||'').replace(/"/g,"'")+'"',o.status,createdLabel(o)]); const csv=[header,...rows].map(r=>r.join(',')).join('\n'); const a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv); a.download='velora_pesanan_'+new Date().toISOString().slice(0,10)+'.csv'; a.click(); toast('CSV berhasil diexport'); }
+function buildOrderRows(){
+  const header=['ID','Kode Booking','Nama','HP','Identitas','Tanggal Mulai','Tanggal Selesai','Jam','Durasi Hari','Lokasi','Warna','Acara','Papan','Harga Per Hari','Harga Total','Uang Masuk','Sisa Bayar','Ucapan','Status','Dibuat'];
+  const rows=orders.map(o=>[
+    o.id, o.bookingCode||'', o.nama, o.hp, o.identitas,
+    o.tanggalMulai||o.tanggal, o.tanggalSelesai||o.tanggal, o.jam,
+    o.jumlahHari||rentalDays(o.tanggalMulai||o.tanggal,o.tanggalSelesai||o.tanggal),
+    o.lokasi, o.warna, o.acara, o.papan,
+    o.hargaSatuan||'', o.harga, paidAmount(o), remainingAmount(o),
+    o.ucapan, o.status, createdLabel(o)
+  ]);
+  return { header, rows };
+}
+function csvCell(v){ return '"'+String(v ?? '').replace(/"/g,'""')+'"'; }
+function exportCSV(){
+  if(!orders.length){toast('Belum ada pesanan');return;}
+  const { header, rows } = buildOrderRows();
+  const csv=[header,...rows].map(r=>r.map(csvCell).join(',')).join('\r\n');
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);
+  a.download='velora_pesanan_'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+  toast('CSV berhasil diexport');
+}
+function exportXLSX(){
+  if(!orders.length){toast('Belum ada pesanan');return;}
+  if(typeof XLSX==='undefined'){ toast('Library Excel belum siap, coba lagi sebentar.'); return; }
+  const { header, rows } = buildOrderRows();
+  const ws=XLSX.utils.aoa_to_sheet([header,...rows]);
+  ws['!cols']=header.map((h,i)=>{
+    const longest=Math.max(h.length, ...rows.map(r=>String(r[i] ?? '').length));
+    return { wch: Math.min(Math.max(longest+2,10), 40) };
+  });
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Pesanan');
+  XLSX.writeFile(wb, 'velora_pesanan_'+new Date().toISOString().slice(0,10)+'.xlsx');
+  toast('Excel berhasil diexport');
+}
 function copyText(text){ navigator.clipboard.writeText(text).catch(()=>{}); toast('Nomor '+text+' disalin!'); }
 
 document.getElementById('admin-pass-input').addEventListener('keydown',e=>{if(e.key==='Enter')checkAdminLogin();});
