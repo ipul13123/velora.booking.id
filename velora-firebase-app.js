@@ -43,12 +43,12 @@ const DEFAULT_CONTENT = {
     { icon:'🏛️', title:'Papan Kubah', desc:'Bentuk arch klasik yang timeless dan elegan' },
     { icon:'🌸', title:'Free Request', desc:'Bebas request model & warna bunga favoritmu' }
   ],
-  // ── Label & ikon jenis papan (key tetap, hanya tampilan) ──
+  // ── Jenis papan ──
   boardTypes: {
-    'Convex': { label:'Convex Mirror', icon:'🪞' },
-    'Papan Bulat': { label:'Papan Bulat', icon:'⭕' },
-    'Papan Kubah': { label:'Papan Kubah', icon:'🏛️' },
-    'Papan Gantung': { label:'Papan Gantung', icon:'🪷' }
+    'Convex': { label:'Convex Mirror', icon:'🪞', active:true },
+    'Papan Bulat': { label:'Papan Bulat', icon:'⭕', active:true },
+    'Papan Kubah': { label:'Papan Kubah', icon:'🏛️', active:true },
+    'Papan Gantung': { label:'Papan Gantung', icon:'🪷', active:true }
   },
   // ── Pilihan warna bunga ──
   warnaOptions: ['Pink', 'Merah', 'Biru', 'Coklat/Cream'],
@@ -86,14 +86,25 @@ function toast(msg){ const el=document.getElementById('toast'); if(!el) return a
 function err(e){ console.error(e); toast('Firebase belum siap atau izin database ditolak. Cek config dan rules.'); }
 function mergePriceMap(source={}){
   const merged = JSON.parse(JSON.stringify(DEFAULT_PRICE_MAP));
+  Object.keys(source || {}).forEach(event => {
+    merged[event] = { ...(merged[event] || {}), ...(source[event] || {}) };
+  });
+  const boards = typeof allPapanList === 'function' ? allPapanList(true) : PAPAN_TYPES;
   EVENT_TYPES.forEach(event => {
-    merged[event] = { ...merged[event], ...(source[event] || {}) };
+    merged[event] = { ...(merged[event] || {}), ...(source[event] || {}) };
+    boards.forEach(p => { if(merged[event][p.key] == null) merged[event][p.key]=0; });
   });
   return merged;
 }
 function mergeContent(source={}){
   const boardTypes = {};
-  Object.keys(DEFAULT_CONTENT.boardTypes).forEach(k => { boardTypes[k] = { ...DEFAULT_CONTENT.boardTypes[k], ...(source.boardTypes && source.boardTypes[k]) }; });
+  const sourceBoards = source.boardTypes || {};
+  [...new Set([...Object.keys(DEFAULT_CONTENT.boardTypes), ...Object.keys(sourceBoards)])].forEach(k => {
+    const fallback = DEFAULT_CONTENT.boardTypes[k] || { label:k, icon:'✨', active:true };
+    boardTypes[k] = { ...fallback, ...(sourceBoards[k] || {}) };
+    if(boardTypes[k].deleted) boardTypes[k].active = false;
+    else if(boardTypes[k].active !== false) boardTypes[k].active = true;
+  });
   return {
     ...DEFAULT_CONTENT,
     ...source,
@@ -104,7 +115,30 @@ function mergeContent(source={}){
     boardTypes
   };
 }
-function papanList(){ return PAPAN_TYPES.map(p => ({ ...p, ...(siteContent.boardTypes && siteContent.boardTypes[p.key]) })); }
+function allPapanList(includeInactive=false){
+  const boardTypes = siteContent.boardTypes || DEFAULT_CONTENT.boardTypes;
+  const keys = [...new Set([...PAPAN_TYPES.map(p=>p.key), ...Object.keys(boardTypes || {})])];
+  return keys.map(key => {
+    const base = PAPAN_TYPES.find(p=>p.key===key) || { key, label:key, icon:'✨' };
+    const item = { ...base, ...(boardTypes[key] || {}) };
+    if(item.deleted) item.active = false;
+    else if(item.active !== false) item.active = true;
+    return item;
+  }).filter(p => !p.deleted && (includeInactive || p.active !== false));
+}
+function papanList(){ return allPapanList(false); }
+function boardKeyFromLabel(label){
+  const base=String(label||'Papan Baru').trim().replace(/\s+/g,' ') || 'Papan Baru';
+  let key=base, i=2;
+  const existing=new Set(allPapanList(true).map(p=>p.key));
+  while(existing.has(key)){ key=`${base} ${i}`; i++; }
+  return key;
+}
+function stockBase(items={}){ const base={}; allPapanList(true).forEach(p=>base[p.key]=0); return {...base,...DEFAULT_STOCK,...items}; }
+function boardFieldId(field,key){ return `board-${field}-${key}`.replace(/[^a-zA-Z0-9_-]/g,'-'); }
+function stockValueId(key){ return `sv-${key}`.replace(/[^a-zA-Z0-9_-]/g,'-'); }
+function encodeBoardKey(key){ return encodeURIComponent(key); }
+function decodeBoardKey(key){ return decodeURIComponent(key); }
 function refresh(){ const a=document.querySelector('.page.active'); renderContent(); renderPriceTable(); updatePrice(); updateAvailability(); if(!a) return; if(a.id==='page-cek') renderCalendar(); if(a.id==='page-admin'&&isAdmin) renderAdmin(); }
 function toDateStr(date){ return date.getFullYear()+'-'+String(date.getMonth()+1).padStart(2,'0')+'-'+String(date.getDate()).padStart(2,'0'); }
 function formatDate(d){ return d ? new Date(d+'T00:00:00').toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'}) : '-'; }
@@ -126,7 +160,7 @@ function remainingAmount(o){ return Math.max(0,(Number(o.harga)||0)-paidAmount(o
 
 function startRealtimeData(){
   if(!firebaseReady()){ toast('Isi konfigurasi Firebase dulu di file HTML.'); return; }
-  stockRef.onSnapshot(async d=>{ if(d.exists&&d.data().items) stockTotal={...DEFAULT_STOCK,...d.data().items}; else await stockRef.set({items:DEFAULT_STOCK,updatedAt:firebase.firestore.FieldValue.serverTimestamp()}); refresh(); }, err);
+  stockRef.onSnapshot(async d=>{ if(d.exists&&d.data().items) stockTotal=stockBase(d.data().items); else await stockRef.set({items:DEFAULT_STOCK,updatedAt:firebase.firestore.FieldValue.serverTimestamp()}); refresh(); }, err);
   blockedRef.onSnapshot(async d=>{ if(d.exists&&Array.isArray(d.data().dates)) blockedDates=d.data().dates; else await blockedRef.set({dates:[]}); refresh(); }, err);
   priceRef.onSnapshot(d=>{ priceMap=d.exists&&d.data().items ? mergePriceMap(d.data().items) : mergePriceMap(); refresh(); }, err);
   contentRef.onSnapshot(d=>{ siteContent=d.exists ? mergeContent(d.data()) : mergeContent(); refresh(); }, err);
@@ -137,19 +171,9 @@ function listenAdminOrders(){
   if(ordersUnsub) ordersUnsub();
   ordersUnsub=ordersRef.orderBy('createdAt','desc').onSnapshot(s=>{ orders=s.docs.map(d=>({id:d.id,...d.data()})); if(document.getElementById('page-admin')?.classList.contains('active')) renderAdmin(); }, err);
 }
-function getStockBaseOnDate(dateStr){ return dailyStockByDate[dateStr] ? {...DEFAULT_STOCK,...dailyStockByDate[dateStr]} : stockTotal; }
-function getStockOnDate(dateStr){ const used=usageByDate[dateStr]||{}, base=getStockBaseOnDate(dateStr), r={}; PAPAN_TYPES.forEach(p=>r[p.key]=Math.max(0,(base[p.key]||0)-(used[p.key]||0))); return r; }
+function getStockBaseOnDate(dateStr){ return dailyStockByDate[dateStr] ? stockBase(dailyStockByDate[dateStr]) : stockBase(stockTotal); }
+function getStockOnDate(dateStr){ const used=usageByDate[dateStr]||{}, base=getStockBaseOnDate(dateStr), r={}; allPapanList(true).forEach(p=>r[p.key]=Math.max(0,(base[p.key]||0)-(used[p.key]||0))); return r; }
 
-function openNav(){
-  document.getElementById('nav-links').classList.add('open');
-  document.getElementById('nav-overlay').classList.add('open');
-  document.body.style.overflow='hidden';
-}
-function closeNav(){
-  document.getElementById('nav-links').classList.remove('open');
-  document.getElementById('nav-overlay').classList.remove('open');
-  document.body.style.overflow='';
-}
 function showPage(p){ if(p==='admin'&&!isAdmin){showAdminOverlay();return;} document.querySelectorAll('.page').forEach(el=>el.classList.remove('active')); document.getElementById('page-'+p).classList.add('active'); if(p==='cek') renderCalendar(); if(p==='admin') renderAdmin(); window.scrollTo(0,0); }
 function triggerAdmin(){ isAdmin ? showPage('admin') : showAdminOverlay(); }
 function showAdminOverlay(){ document.getElementById('admin-login-overlay').classList.add('active'); setTimeout(()=>document.getElementById('admin-email-input').focus(),100); }
@@ -190,7 +214,7 @@ function renderCalendar(){
   const first=new Date(calYear,calMonth,1), last=new Date(calYear,calMonth+1,0), grid=document.getElementById('cal-days');
   let html=''; for(let i=0;i<first.getDay();i++) html+='<button class="cal-day empty"></button>';
   for(let d=1;d<=last.getDate();d++){
-    const date=new Date(calYear,calMonth,d), ds=toDateStr(date), past=date<new Date(today.getFullYear(),today.getMonth(),today.getDate()), blocked=blockedDates.includes(ds), stock=getStockOnDate(ds), full=blocked||PAPAN_TYPES.every(p=>stock[p.key]===0);
+    const date=new Date(calYear,calMonth,d), ds=toDateStr(date), past=date<new Date(today.getFullYear(),today.getMonth(),today.getDate()), blocked=blockedDates.includes(ds), stock=getStockOnDate(ds), full=blocked||papanList().every(p=>stock[p.key]===0);
     let cls='cal-day'; if(past) cls+=' past'; else if(full) cls+=' booked'; else if(ds===toDateStr(today)) cls+=' today';
     html+=`<button class="${cls}" ${past||full?'':`onclick="checkDate('${ds}')"`}>${d}</button>`;
   }
@@ -202,7 +226,7 @@ function nextMonth(){ changeMonth(1); }
 function checkDate(dateStr){
   document.querySelectorAll('.cal-day').forEach(b=>b.classList.remove('selected'));
   const day=new Date(dateStr+'T00:00:00').getDate(); document.querySelectorAll('.cal-day').forEach(b=>{ if(b.textContent==day&&!b.classList.contains('empty')) b.classList.add('selected'); });
-  const stock=getStockOnDate(dateStr), blocked=blockedDates.includes(dateStr), allOut=PAPAN_TYPES.every(p=>stock[p.key]===0);
+  const stock=getStockOnDate(dateStr), blocked=blockedDates.includes(dateStr), allOut=papanList().every(p=>stock[p.key]===0);
   document.getElementById('cek-result').style.display='block';
   document.getElementById('cek-banner').innerHTML=blocked||allOut ? `<div class="status-banner unavailable"><strong>Maaf, tanggal ${formatDate(dateStr)} tidak tersedia.</strong><br>Silakan pilih tanggal lain.</div>` : `<div class="status-banner available"><strong>Tanggal ${formatDate(dateStr)} tersedia.</strong><br>Kamu bisa lanjut melakukan pemesanan.</div>`;
   document.getElementById('cek-stock-wrap').style.display='block';
@@ -216,8 +240,11 @@ function checkDate(dateStr){
 }
 function renderPriceTable(){
   const tbody = document.getElementById('price-table-body');
+  const thead = document.getElementById('price-table-head');
+  const boards = papanList();
+  if(thead) thead.innerHTML = `<tr><th>Acara</th>${boards.map(p=>`<th>${p.label}</th>`).join('')}</tr>`;
   if(!tbody) return;
-  tbody.innerHTML = EVENT_TYPES.map(event => `<tr><td>${event}</td>${papanList().map(p => `<td style="color:var(--pink-deep);font-weight:600">Rp ${(priceMap[event]?.[p.key] || 0).toLocaleString('id-ID')}</td>`).join('')}</tr>`).join('');
+  tbody.innerHTML = EVENT_TYPES.map(event => `<tr><td>${event}</td>${boards.map(p => `<td style="color:var(--pink-deep);font-weight:600">Rp ${(priceMap[event]?.[p.key] || 0).toLocaleString('id-ID')}</td>`).join('')}</tr>`).join('');
 }
 function updateColorOptions(){
   const papan = document.getElementById('f-papan')?.value;
@@ -413,11 +440,45 @@ function addFeatureAdminRow(){
 function renderBoardTypesAdminList(){
   const list=document.getElementById('board-types-admin-list');
   if(!list) return;
-  list.innerHTML=papanList().map(p=>`
-    <div class="gallery-admin-row" style="grid-template-columns:.6fr 1fr;">
-      <input id="board-icon-${p.key}" value="${p.icon || ''}" placeholder="🪞">
-      <input id="board-label-${p.key}" value="${p.label || ''}" placeholder="Nama tampilan">
+  list.innerHTML=allPapanList(true).map(p=>`
+    <div class="board-admin-row">
+      <input id="${boardFieldId('icon',p.key)}" value="${p.icon || ''}" placeholder="Ikon">
+      <input id="${boardFieldId('label',p.key)}" value="${p.label || ''}" placeholder="Nama papan">
+      <label class="board-active-toggle">
+        <input id="${boardFieldId('active',p.key)}" type="checkbox" ${p.active!==false?'checked':''}>
+        Tampil
+      </label>
+      <button class="action-btn delete" onclick="deleteBoardType('${encodeBoardKey(p.key)}')">Hapus</button>
     </div>`).join('');
+}
+function addBoardTypeAdminRow(){
+  const key=boardKeyFromLabel('Papan Baru');
+  siteContent={
+    ...siteContent,
+    boardTypes:{
+      ...(siteContent.boardTypes || {}),
+      [key]:{ label:key, icon:'✨', active:true }
+    }
+  };
+  stockTotal={...stockTotal,[key]:0};
+  priceMap=mergePriceMap(priceMap);
+  renderBoardTypesAdminList();
+  renderStockInputs();
+  renderDailyStockInputs();
+  renderPriceInputs();
+  renderContent();
+  renderPriceTable();
+}
+function deleteBoardType(encodedKey){
+  const key=decodeBoardKey(encodedKey);
+  if(!confirm('Hapus jenis papan "'+key+'"? Papan ini tidak akan tampil lagi di form pelanggan.')) return;
+  const next={...(siteContent.boardTypes || {})};
+  if(DEFAULT_CONTENT.boardTypes[key]) next[key]={...(next[key] || DEFAULT_CONTENT.boardTypes[key]), deleted:true, active:false};
+  else delete next[key];
+  siteContent={...siteContent, boardTypes:next};
+  renderBoardTypesAdminList();
+  renderContent();
+  renderPriceTable();
 }
 function renderGalleryAdminList(){
   const list=document.getElementById('gallery-admin-list');
@@ -443,11 +504,12 @@ async function saveContent(){
     title:document.getElementById(`feat-title-${i}`)?.value.trim() || f.title,
     desc:document.getElementById(`feat-desc-${i}`)?.value.trim() || f.desc
   })).filter(f=>f.title);
-  const boardTypes={};
-  PAPAN_TYPES.forEach(p=>{
+  const boardTypes={...(siteContent.boardTypes || {})};
+  allPapanList(true).forEach(p=>{
     boardTypes[p.key]={
-      icon:document.getElementById(`board-icon-${p.key}`)?.value.trim() || p.icon,
-      label:document.getElementById(`board-label-${p.key}`)?.value.trim() || p.label
+      icon:document.getElementById(boardFieldId('icon',p.key))?.value.trim() || p.icon,
+      label:document.getElementById(boardFieldId('label',p.key))?.value.trim() || p.label,
+      active:document.getElementById(boardFieldId('active',p.key))?.checked !== false
     };
   });
   const warnaOptions=document.getElementById('content-warna').value.split(',').map(v=>v.trim()).filter(Boolean);
@@ -474,6 +536,10 @@ async function saveContent(){
   });
   await contentRef.set({...siteContent, updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
   renderContent();
+  renderPriceTable();
+  renderStockInputs();
+  renderDailyStockInputs();
+  renderPriceInputs();
   toast('Konten website berhasil disimpan!');
 }
 async function submitOrder(){
@@ -491,14 +557,14 @@ async function submitOrder(){
   try{
     await db.runTransaction(async tx=>{
       const sd=await tx.get(stockRef), bd=await tx.get(blockedRef), dd=await tx.get(dailyStockRef);
-      const stock=sd.exists&&sd.data().items?{...DEFAULT_STOCK,...sd.data().items}:DEFAULT_STOCK;
+      const stock=sd.exists&&sd.data().items?stockBase(sd.data().items):stockBase(DEFAULT_STOCK);
       const blocked=bd.exists&&Array.isArray(bd.data().dates)?bd.data().dates:[];
       const daily=dd.exists&&dd.data().items?dd.data().items:{};
       order.bookingCode=`VEL-${compactDate(toDateStr(new Date()))}-${newOrder.id.slice(0,5).toUpperCase()}`;
       const usageDocs=await Promise.all(tanggalList.map(d=>tx.get(usageRef.doc(d))));
       for(let i=0;i<tanggalList.length;i++){
         const d=tanggalList[i], counts=usageDocs[i].exists&&usageDocs[i].data().counts?usageDocs[i].data().counts:{};
-        const base=daily[d]?{...stock,...daily[d]}:stock;
+        const base=daily[d]?stockBase({...stock,...daily[d]}):stock;
         if(blocked.includes(d)) throw new Error('blocked:'+d);
         if((base[papan]||0)-(counts[papan]||0)<=0) throw new Error('out:'+d);
       }
@@ -563,23 +629,23 @@ function viewOrder(id){
 }
 function closeModal(){document.getElementById('detail-modal').classList.remove('active');}
 function renderBlockedList(){ const list=document.getElementById('blocked-list-display'); list.innerHTML=blockedDates.length?blockedDates.map(d=>`<div class="blocked-chip">${formatDate(d)} <button onclick="removeBlock('${d}')">×</button></div>`).join(''):'<span style="color:var(--muted);font-size:.82rem">Belum ada tanggal yang diblocked</span>'; }
-function renderStockInputs(){ const row=document.getElementById('stock-input-row'); if(!row)return; row.innerHTML=papanList().map(p=>`<div class="stock-input-item"><label>${p.icon} ${p.label}</label><div class="stock-ctrl"><button onclick="changeStock('${p.key}', -1)">−</button><span class="stock-val" id="sv-${p.key.replace(' ','-')}">${stockTotal[p.key]||0}</span><button onclick="changeStock('${p.key}', 1)">+</button></div></div>`).join(''); }
-function changeStock(key,delta){ stockTotal[key]=Math.max(0,(stockTotal[key]||0)+delta); const el=document.getElementById('sv-'+key.replace(' ','-')); if(el)el.textContent=stockTotal[key]; }
+function renderStockInputs(){ const row=document.getElementById('stock-input-row'); if(!row)return; row.innerHTML=allPapanList(true).map(p=>`<div class="stock-input-item"><label>${p.icon} ${p.label}${p.active===false?' (Disembunyikan)':''}</label><div class="stock-ctrl"><button onclick="changeStock('${encodeBoardKey(p.key)}', -1)">−</button><span class="stock-val" id="${stockValueId(p.key)}">${stockTotal[p.key]||0}</span><button onclick="changeStock('${encodeBoardKey(p.key)}', 1)">+</button></div></div>`).join(''); }
+function changeStock(encodedKey,delta){ const key=decodeBoardKey(encodedKey); stockTotal[key]=Math.max(0,(stockTotal[key]||0)+delta); const el=document.getElementById(stockValueId(key)); if(el)el.textContent=stockTotal[key]; }
 async function saveStock(){ await stockRef.set({items:stockTotal,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}); toast('Stok berhasil disimpan!'); }
 function dailyStockInputId(key){ return 'dsv-'+key.replace(/\s+/g,'-'); }
 function renderDailyStockInputs(){
   const dateEl=document.getElementById('daily-stock-date'), row=document.getElementById('daily-stock-input-row'), hint=document.getElementById('daily-stock-hint');
   if(!dateEl||!row) return;
-  const d=dateEl.value || toDateStr(today), base=dailyStockByDate[d] ? {...DEFAULT_STOCK,...dailyStockByDate[d]} : stockTotal;
+  const d=dateEl.value || toDateStr(today), base=dailyStockByDate[d] ? stockBase(dailyStockByDate[d]) : stockBase(stockTotal);
   dateEl.value=d;
-  row.innerHTML=papanList().map(p=>`<div class="stock-input-item"><label>${p.icon} ${p.label}</label><input id="${dailyStockInputId(p.key)}" type="number" min="0" step="1" value="${base[p.key]||0}" style="width:100%;background:white;"></div>`).join('');
+  row.innerHTML=allPapanList(true).map(p=>`<div class="stock-input-item"><label>${p.icon} ${p.label}${p.active===false?' (Disembunyikan)':''}</label><input id="${dailyStockInputId(p.key)}" type="number" min="0" step="1" value="${base[p.key]||0}" style="width:100%;background:white;"></div>`).join('');
   if(hint) hint.textContent=dailyStockByDate[d] ? 'Tanggal ini memakai stok khusus.' : 'Tanggal ini masih mengikuti stok total.';
 }
 async function saveDailyStock(){
   const d=document.getElementById('daily-stock-date')?.value;
   if(!d){ toast('Pilih tanggal stok dulu.'); return; }
   const items={};
-  PAPAN_TYPES.forEach(p=>items[p.key]=Math.max(0,Number(document.getElementById(dailyStockInputId(p.key))?.value||0)));
+  allPapanList(true).forEach(p=>items[p.key]=Math.max(0,Number(document.getElementById(dailyStockInputId(p.key))?.value||0)));
   dailyStockByDate={...dailyStockByDate,[d]:items};
   await dailyStockRef.set({items:dailyStockByDate,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
   toast('Stok tanggal '+formatDate(d)+' berhasil disimpan!');
@@ -598,14 +664,14 @@ function priceInputId(event, papan){ return `price-${event}-${papan}`.replace(/[
 function renderPriceInputs(){
   const grid=document.getElementById('price-admin-grid');
   if(!grid) return;
-  grid.innerHTML=EVENT_TYPES.map(event => papanList().map(p => {
+  grid.innerHTML=EVENT_TYPES.map(event => allPapanList(true).map(p => {
     const id=priceInputId(event,p.key);
-    return `<div class="price-admin-item"><label>${event} - ${p.label}</label><input id="${id}" type="number" min="0" step="1000" value="${priceMap[event]?.[p.key] || 0}"></div>`;
+    return `<div class="price-admin-item"><label>${event} - ${p.label}${p.active===false?' (Disembunyikan)':''}</label><input id="${id}" type="number" min="0" step="1000" value="${priceMap[event]?.[p.key] || 0}"></div>`;
   }).join('')).join('');
 }
 async function savePrices(){
   const next=mergePriceMap(priceMap);
-  EVENT_TYPES.forEach(event => PAPAN_TYPES.forEach(p => {
+  EVENT_TYPES.forEach(event => allPapanList(true).forEach(p => {
     const el=document.getElementById(priceInputId(event,p.key));
     next[event][p.key]=Math.max(0, Number(el?.value || 0));
   }));
@@ -663,6 +729,3 @@ renderContent();
 updateColorOptions();
 startRealtimeData();
 renderCalendar();
-
-
-
