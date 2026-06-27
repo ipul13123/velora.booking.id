@@ -451,9 +451,9 @@ function buildOrderWhatsAppMessage(order){
   const promoLine=order.promoDiscount ? `Promo: 🎁 ${order.promoLabel} (-${order.promoDiscount}%)` : '';
   const proofLine=order.proofUrl ? `Bukti Pembayaran: [Terlampir di pesanan / sudah diupload]` : 'Bukti Pembayaran: (Akan saya kirimkan segera)';
   return [
-    'Halo Admin Velora, saya sudah membuat pesanan. Berikut detailnya:',
+    'Halo Admin, saya sudah membuat pesanan. Berikut detailnya:',
     '',
-    `📋 *DETAIL PESANAN*`,
+    `*DETAIL PESANAN*`,
     `Kode Booking: *${order.bookingCode || order.id || '-'}*`,
     `Nama: ${order.nama}`,
     `No. HP: ${order.hp}`,
@@ -465,13 +465,13 @@ function buildOrderWhatsAppMessage(order){
     `Jenis Papan: ${order.papan}`,
     `Warna Bunga: ${order.warna}`,
     '',
-    `💰 *PEMBAYARAN*`,
+    `*PEMBAYARAN*`,
     `Total Sewa: *${formatMoney(order.harga)}*`,
     promoLine,
     `Min. DP 50%: *${formatMoney(Math.ceil(order.harga*0.5))}*`,
     proofLine,
     '',
-    `✍️ *UCAPAN*`,
+    `*UCAPAN*`,
     order.ucapan,
     '',
     'Mohon diproses ya, Admin. Terima kasih 🌸'
