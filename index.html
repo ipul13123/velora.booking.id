@@ -134,6 +134,21 @@
   .wa-icon { width:19px; height:19px; display:inline-block; fill:currentColor; flex:0 0 auto; }
   .nav-btn.whatsapp { background:#25d366; color:white; }
   .nav-btn.whatsapp:hover { transform:translateY(-1px); box-shadow:0 4px 16px rgba(37,211,102,0.32); }
+  .nav-hamburger {
+    display:none; background:transparent; border:1px solid rgba(201,169,110,0.4);
+    color:var(--gold-light); border-radius:10px; width:38px; height:38px;
+    font-size:1.25rem; cursor:pointer; align-items:center; justify-content:center;
+    transition:background .2s;
+  }
+  .nav-hamburger:hover { background:rgba(201,169,110,0.12); }
+  .nav-close-btn {
+    position:absolute; top:20px; right:20px;
+    background:rgba(255,255,255,.08); border:1px solid rgba(201,169,110,0.3);
+    color:var(--gold-light); border-radius:8px;
+    width:36px; height:36px; font-size:1.1rem;
+    cursor:pointer; line-height:1;
+    display:flex; align-items:center; justify-content:center;
+  }
 
   /* ── SECTIONS ── */
   .page { display:none; }
@@ -412,8 +427,19 @@
 
   /* responsive */
   @media(max-width:640px){
-    nav { padding:0 16px; }
-    .nav-links .nav-btn span { display:none; }
+    nav { padding:0 16px; position:relative; }
+    .nav-hamburger { display:flex; }
+    .nav-links {
+      display:none; flex-direction:column; gap:8px;
+      position:fixed; top:0; right:0; bottom:0; width:75%; max-width:280px;
+      background:linear-gradient(160deg, var(--purple-dark) 0%, #1a0a1a 100%);
+      padding:80px 20px 32px; box-shadow:-8px 0 32px rgba(0,0,0,.4);
+      z-index:999; overflow-y:auto;
+    }
+    .nav-links.open { display:flex; }
+    .nav-links .nav-btn { width:100%; text-align:left; justify-content:flex-start; font-size:.95rem; padding:12px 16px; border-radius:12px; }
+    .nav-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:998; }
+    .nav-overlay.open { display:block; }
     table { font-size:.75rem; }
     th, td { padding:8px 10px; }
   }
@@ -454,17 +480,20 @@
 </button>
 
 <!-- NAVBAR -->
+<div class="nav-overlay" id="nav-overlay" onclick="closeNav()"></div>
 <nav>
   <div class="nav-brand">
     <span>✦</span> velora.id <span>Beauty Reflections</span>
   </div>
-  <div class="nav-links">
-    <button class="nav-btn ghost" onclick="showPage('home')">Beranda</button>
-    <button class="nav-btn ghost" onclick="showPage('gallery')">Koleksi</button>
-    <button class="nav-btn ghost" onclick="showPage('cek')">Cek Tanggal</button>
-    <button class="nav-btn primary" onclick="showPage('pesan')">Pesan Sekarang</button>
-    <button class="nav-btn whatsapp" onclick="openWhatsAppAdmin()"><span class="wa-btn-text">Hubungi Admin</span></button>
-    <button class="nav-btn ghost" id="admin-nav-btn" onclick="triggerAdmin()">⚙️ Admin</button>
+  <button class="nav-hamburger" id="nav-hamburger" onclick="openNav()" aria-label="Buka menu">☰</button>
+  <div class="nav-links" id="nav-links">
+    <button class="nav-close-btn" onclick="closeNav()" aria-label="Tutup menu">✕</button>
+    <button class="nav-btn ghost" onclick="showPage('home');closeNav()">🏠 Beranda</button>
+    <button class="nav-btn ghost" onclick="showPage('gallery');closeNav()">🖼️ Koleksi</button>
+    <button class="nav-btn ghost" onclick="showPage('cek');closeNav()">📅 Cek Tanggal</button>
+    <button class="nav-btn primary" onclick="showPage('pesan');closeNav()">🌸 Pesan Sekarang</button>
+    <button class="nav-btn whatsapp" onclick="openWhatsAppAdmin();closeNav()"><span class="wa-btn-text">Hubungi Admin</span></button>
+    <button class="nav-btn ghost" id="admin-nav-btn" onclick="triggerAdmin();closeNav()">⚙️ Admin</button>
     <span class="admin-badge" id="admin-badge" style="display:none">ADMIN</span>
   </div>
 </nav>

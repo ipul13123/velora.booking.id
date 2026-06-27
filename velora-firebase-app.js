@@ -140,6 +140,16 @@ function listenAdminOrders(){
 function getStockBaseOnDate(dateStr){ return dailyStockByDate[dateStr] ? {...DEFAULT_STOCK,...dailyStockByDate[dateStr]} : stockTotal; }
 function getStockOnDate(dateStr){ const used=usageByDate[dateStr]||{}, base=getStockBaseOnDate(dateStr), r={}; PAPAN_TYPES.forEach(p=>r[p.key]=Math.max(0,(base[p.key]||0)-(used[p.key]||0))); return r; }
 
+function openNav(){
+  document.getElementById('nav-links').classList.add('open');
+  document.getElementById('nav-overlay').classList.add('open');
+  document.body.style.overflow='hidden';
+}
+function closeNav(){
+  document.getElementById('nav-links').classList.remove('open');
+  document.getElementById('nav-overlay').classList.remove('open');
+  document.body.style.overflow='';
+}
 function showPage(p){ if(p==='admin'&&!isAdmin){showAdminOverlay();return;} document.querySelectorAll('.page').forEach(el=>el.classList.remove('active')); document.getElementById('page-'+p).classList.add('active'); if(p==='cek') renderCalendar(); if(p==='admin') renderAdmin(); window.scrollTo(0,0); }
 function triggerAdmin(){ isAdmin ? showPage('admin') : showAdminOverlay(); }
 function showAdminOverlay(){ document.getElementById('admin-login-overlay').classList.add('active'); setTimeout(()=>document.getElementById('admin-email-input').focus(),100); }
