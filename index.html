@@ -460,6 +460,70 @@
   }
   .board-active-toggle input { width:auto; }
 
+  /* ── PROMO ── */
+  .promo-badge {
+    display:inline-block; background:linear-gradient(135deg,var(--pink-deep),var(--gold));
+    color:white; font-size:.72rem; font-weight:700; padding:3px 10px; border-radius:50px;
+    letter-spacing:.06em; margin-left:8px; vertical-align:middle;
+  }
+  .promo-banner {
+    background:linear-gradient(135deg,#fff0f5,#fff8e8);
+    border:1.5px solid var(--pink);
+    border-radius:12px; padding:12px 16px; margin-top:8px;
+    font-size:.84rem; color:var(--dark); display:flex; align-items:center; gap:10px;
+  }
+  .promo-banner .promo-icon { font-size:1.3rem; }
+  .promo-admin-list { display:flex; flex-direction:column; gap:12px; }
+  .promo-admin-row {
+    background:var(--pink-pale); border-radius:14px; padding:14px 16px;
+    display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:10px; align-items:end;
+  }
+  @media(max-width:640px){ .promo-admin-row { grid-template-columns:1fr 1fr; } }
+  .promo-admin-row label { display:block; font-size:.78rem; font-weight:600; margin-bottom:4px; }
+  .promo-admin-row input { background:white; width:100%; }
+  .promo-del-btn { background:#f8d7da; border:none; border-radius:8px; padding:8px 12px; color:#842029; cursor:pointer; font-size:.82rem; font-weight:600; }
+
+  /* ── UPLOAD BUKTI ── */
+  .upload-zone {
+    border:2px dashed var(--pink); border-radius:14px; padding:20px;
+    text-align:center; cursor:pointer; transition:all .2s; background:var(--pink-pale);
+    position:relative;
+  }
+  .upload-zone:hover, .upload-zone.drag-over { background:var(--pink-light); border-color:var(--pink-deep); }
+  .upload-zone input[type=file] { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; height:100%; }
+  .upload-zone .upload-icon { font-size:2rem; margin-bottom:6px; }
+  .upload-zone .upload-txt { font-size:.82rem; color:var(--muted); }
+  .upload-preview { margin-top:10px; display:none; }
+  .upload-preview img { max-width:100%; max-height:200px; border-radius:10px; object-fit:contain; border:1.5px solid #e8d5e8; }
+  .upload-progress { height:4px; background:#e8d5e8; border-radius:99px; margin-top:8px; display:none; }
+  .upload-progress-bar { height:100%; background:linear-gradient(90deg,var(--pink-deep),var(--gold)); border-radius:99px; transition:width .3s; width:0; }
+  .proof-thumb { max-width:120px; border-radius:8px; border:1.5px solid #e8d5e8; cursor:pointer; }
+  .proof-thumb:hover { opacity:.85; }
+
+  /* ── DATE FILTER ── */
+  .date-filter-bar {
+    background:var(--white); border-radius:14px; padding:14px 18px;
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+    box-shadow:var(--shadow); margin-bottom:16px;
+  }
+  .date-filter-bar label { font-size:.82rem; font-weight:600; color:var(--dark); white-space:nowrap; }
+  .date-summary-chips { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+  .date-summary-chip {
+    background:var(--pink-pale); border-radius:10px; padding:6px 12px;
+    font-size:.78rem; color:var(--dark); border:1px solid #f0d8f0;
+    display:flex; align-items:center; gap:6px;
+  }
+  .date-summary-chip .chip-num { font-family:'Playfair Display',serif; font-size:1.1rem; font-weight:700; color:var(--pink-deep); }
+
+  /* image modal */
+  .img-modal-overlay {
+    display:none; position:fixed; inset:0; z-index:600;
+    background:rgba(0,0,0,0.85); align-items:center; justify-content:center;
+  }
+  .img-modal-overlay.active { display:flex; }
+  .img-modal-overlay img { max-width:90vw; max-height:90vh; border-radius:12px; object-fit:contain; }
+  .img-modal-close { position:absolute; top:20px; right:24px; background:none; border:none; color:white; font-size:2rem; cursor:pointer; }
+
   /* responsive */
   @media(max-width:640px){
     body { overflow-x:hidden; }
@@ -781,6 +845,7 @@
             <span class="amount" id="price-show"><span>Rp </span>—</span>
           </div>
           <div id="price-note" style="font-size:.78rem;color:var(--muted);margin-top:6px;"></div>
+          <div id="promo-info-box"></div>
         </div>
         <div class="form-group full" id="availability-group" style="display:none">
           <label>Ketersediaan Stok</label>
@@ -804,6 +869,24 @@
           <strong>NB:</strong> Order minimal harus DP 50% atau bisa lunas 100% dari harga sewa. Jika pesan tapi tidak melakukan minimal DP dianggap tidak pesan.<br>
           Kirim bukti DP/Pelunasan ke admin Velora.id.
         </p>
+      </div>
+
+      <!-- Upload Bukti Pembayaran -->
+      <div style="margin-top:16px;">
+        <label style="display:block;margin-bottom:8px;font-weight:600;">📎 Upload Bukti Pembayaran DP/Lunas <span style="color:var(--muted);font-weight:400;font-size:.8rem;">(Opsional — bisa upload sekarang atau kirim via WA)</span></label>
+        <div class="upload-zone" id="upload-zone" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="handleFileDrop(event)">
+          <input type="file" id="proof-file-input" accept="image/*" onchange="handleFileSelect(this)">
+          <div class="upload-icon">📷</div>
+          <div class="upload-txt">Klik atau drag foto bukti transfer / screenshot QRIS di sini</div>
+          <div class="upload-txt" style="margin-top:4px;font-size:.75rem;">Format: JPG, PNG, WEBP · Maks 5MB</div>
+        </div>
+        <div class="upload-progress" id="upload-progress"><div class="upload-progress-bar" id="upload-progress-bar"></div></div>
+        <div class="upload-preview" id="upload-preview">
+          <img id="upload-preview-img" src="" alt="Preview bukti">
+          <div style="font-size:.78rem;color:var(--muted);margin-top:6px;" id="upload-preview-name"></div>
+          <button onclick="clearUpload()" style="background:none;border:none;color:var(--pink-deep);font-size:.8rem;cursor:pointer;margin-top:4px;">✕ Hapus foto</button>
+        </div>
+        <div id="upload-status" style="font-size:.8rem;margin-top:6px;color:var(--muted);"></div>
       </div>
 
       <div class="note-box" style="margin-bottom:20px;">
@@ -848,6 +931,17 @@
     </div>
 
     <div class="stats-row" id="stats-row"></div>
+
+    <!-- Promo Manager -->
+    <div class="stock-mgr">
+      <h3>🎁 Kelola Promo Khusus</h3>
+      <p style="font-size:.83rem;color:var(--muted);margin-bottom:16px;">Buat diskon khusus untuk tanggal-tanggal tertentu (mis. hari ulang tahun, event spesial). Pelanggan akan melihat harga diskon otomatis saat memilih tanggal tersebut.</p>
+      <div class="promo-admin-list" id="promo-admin-list"></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;">
+        <button class="btn btn-outline" style="font-size:.82rem;color:var(--dark);border-color:#e8d5e8;" onclick="addPromoRow()">+ Tambah Promo</button>
+        <button class="btn btn-pink" style="font-size:.85rem;" onclick="savePromos()">💾 Simpan Semua Promo</button>
+      </div>
+    </div>
 
     <!-- Blocked Dates Manager -->
     <div class="blocked-mgr">
@@ -1020,6 +1114,14 @@
           <button class="btn btn-outline" style="font-size:.8rem;padding:7px 16px;color:var(--dark);border-color:#e8d5e8;" onclick="exportCSV()">📄 Export CSV</button>
         </div>
       </div>
+      <!-- Date Filter -->
+      <div class="date-filter-bar" style="margin:12px 20px 0;">
+        <label>🗓️ Filter Tanggal Booking:</label>
+        <input type="date" id="filter-date" onchange="renderTable()" style="padding:7px 12px;border-radius:8px;border:1.5px solid #e8d5e8;font-size:.82rem;background:var(--pink-pale);">
+        <button onclick="document.getElementById('filter-date').value='';renderTable();" style="background:none;border:none;cursor:pointer;font-size:.82rem;color:var(--muted);">✕ Reset</button>
+        <div id="date-filter-summary" style="font-size:.82rem;color:var(--muted);"></div>
+      </div>
+      <div id="date-summary-chips" class="date-summary-chips" style="padding:0 20px 12px;"></div>
       <div style="overflow-x:auto;">
         <table>
           <thead>
@@ -1039,6 +1141,12 @@
       </div>
     </div>
   </div>
+</div>
+
+<!-- Image Preview Modal -->
+<div class="img-modal-overlay" id="proof-modal" onclick="this.classList.remove('active')">
+  <button class="img-modal-close" onclick="document.getElementById('proof-modal').classList.remove('active')">×</button>
+  <img id="proof-modal-img" src="" alt="Bukti Pembayaran">
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
