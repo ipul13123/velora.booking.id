@@ -174,7 +174,18 @@ function listenAdminOrders(){
 function getStockBaseOnDate(dateStr){ return dailyStockByDate[dateStr] ? stockBase(dailyStockByDate[dateStr]) : stockBase(stockTotal); }
 function getStockOnDate(dateStr){ const used=usageByDate[dateStr]||{}, base=getStockBaseOnDate(dateStr), r={}; allPapanList(true).forEach(p=>r[p.key]=Math.max(0,(base[p.key]||0)-(used[p.key]||0))); return r; }
 
-function showPage(p){ if(p==='admin'&&!isAdmin){showAdminOverlay();return;} document.querySelectorAll('.page').forEach(el=>el.classList.remove('active')); document.getElementById('page-'+p).classList.add('active'); if(p==='cek') renderCalendar(); if(p==='admin') renderAdmin(); window.scrollTo(0,0); }
+function setMobileMenu(open){
+  const nav=document.getElementById('main-nav'), toggle=document.getElementById('nav-toggle');
+  if(!nav) return;
+  nav.classList.toggle('menu-open', open);
+  if(toggle) toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+function toggleMobileMenu(){
+  const nav=document.getElementById('main-nav');
+  setMobileMenu(!nav?.classList.contains('menu-open'));
+}
+function closeMobileMenu(){ setMobileMenu(false); }
+function showPage(p){ closeMobileMenu(); if(p==='admin'&&!isAdmin){showAdminOverlay();return;} document.querySelectorAll('.page').forEach(el=>el.classList.remove('active')); document.getElementById('page-'+p).classList.add('active'); if(p==='cek') renderCalendar(); if(p==='admin') renderAdmin(); window.scrollTo(0,0); }
 function triggerAdmin(){ isAdmin ? showPage('admin') : showAdminOverlay(); }
 function showAdminOverlay(){ document.getElementById('admin-login-overlay').classList.add('active'); setTimeout(()=>document.getElementById('admin-email-input').focus(),100); }
 function closeAdminOverlay(){
@@ -314,6 +325,7 @@ function getWhatsAppLink(message){
   return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
 }
 function openWhatsAppAdmin(message){
+  closeMobileMenu();
   window.open(getWhatsAppLink(message || siteContent.waDefaultMessage || DEFAULT_CONTENT.waDefaultMessage), '_blank');
 }
 function buildOrderWhatsAppMessage(order){

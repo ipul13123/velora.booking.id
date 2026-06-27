@@ -79,6 +79,30 @@
   }
   .nav-brand span { font-size:.75rem; color: var(--pink); font-family:'DM Sans',sans-serif; letter-spacing:.1em; text-transform:uppercase; font-weight:500; }
   .nav-links { display:flex; gap:8px; align-items:center; }
+  .nav-toggle {
+    display:none;
+    width:42px;
+    height:42px;
+    border-radius:12px;
+    border:1px solid rgba(201,169,110,0.45);
+    background:rgba(255,255,255,0.06);
+    color:var(--gold-light);
+    cursor:pointer;
+    align-items:center;
+    justify-content:center;
+    flex-direction:column;
+    gap:5px;
+  }
+  .nav-toggle span {
+    width:20px;
+    height:2px;
+    border-radius:999px;
+    background:currentColor;
+    transition:transform .2s, opacity .2s;
+  }
+  nav.menu-open .nav-toggle span:nth-child(1) { transform:translateY(7px) rotate(45deg); }
+  nav.menu-open .nav-toggle span:nth-child(2) { opacity:0; }
+  nav.menu-open .nav-toggle span:nth-child(3) { transform:translateY(-7px) rotate(-45deg); }
   .nav-btn {
     padding: 8px 18px;
     border-radius: 50px;
@@ -444,25 +468,34 @@
       min-height:64px;
       padding:10px 14px;
       gap:10px;
-      align-items:flex-start;
+      align-items:center;
       flex-wrap:wrap;
     }
     .nav-brand {
-      width:100%;
-      justify-content:center;
-      text-align:center;
+      flex:1;
+      justify-content:flex-start;
+      text-align:left;
       font-size:1.2rem;
       min-width:0;
     }
     .nav-brand span:last-child { display:none; }
+    .nav-toggle { display:flex; }
     .nav-links {
       width:100%;
-      justify-content:center;
-      flex-wrap:wrap;
-      gap:6px;
+      display:none;
+      justify-content:flex-start;
+      align-items:stretch;
+      flex-direction:column;
+      gap:8px;
+      background:rgba(255,255,255,0.06);
+      border:1px solid rgba(201,169,110,0.25);
+      border-radius:16px;
+      padding:10px;
     }
-    .nav-btn { padding:7px 10px; font-size:.76rem; }
-    .nav-links .nav-btn span { display:none; }
+    nav.menu-open .nav-links { display:flex; }
+    .nav-btn { width:100%; justify-content:center; padding:10px 12px; font-size:.82rem; border-radius:12px; }
+    .nav-links .nav-btn span { display:inline; }
+    .admin-badge { align-self:center; }
     .hero { padding:44px 16px 56px; }
     .hero-logo-img { width:88px; height:88px; }
     .hero p { font-size:1rem; line-height:1.5; letter-spacing:.02em; }
@@ -536,10 +569,15 @@
 </button>
 
 <!-- NAVBAR -->
-<nav>
+<nav id="main-nav">
   <div class="nav-brand">
     <span>✦</span> velora.id <span>Beauty Reflections</span>
   </div>
+  <button class="nav-toggle" id="nav-toggle" onclick="toggleMobileMenu()" aria-label="Buka menu" aria-expanded="false" type="button">
+    <span></span>
+    <span></span>
+    <span></span>
+  </button>
   <div class="nav-links">
     <button class="nav-btn ghost" onclick="showPage('home')">Beranda</button>
     <button class="nav-btn ghost" onclick="showPage('gallery')">Koleksi</button>
