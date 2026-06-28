@@ -458,38 +458,38 @@ function buildOrderWhatsAppMessage(order){
     : `╰ 📎 *Bukti:* Akan saya kirimkan segera`;
 
   return `✦ *VELORA.ID* — Beauty Reflections ✦
-━━━━━━━━━━━━━━━━━━━━━
+
 🌸 *PESANAN BARU MASUK* 🌸
-━━━━━━━━━━━━━━━━━━━━━
+
 
 📋 *KODE BOOKING*
 ╰ *${order.bookingCode || order.id || '-'}*
 
 👤 *DATA PENYEWA*
-╰ 🪪 Nama     : ${order.nama}
-╰ 📱 No. HP   : ${order.hp}
-╰ 🆔 Identitas: ${order.identitas || '-'}
+- 🪪 Nama     : ${order.nama}
+- 📱 No. HP   : ${order.hp}
+- 🆔 Identitas: ${order.identitas || '-'}
 
 📅 *DETAIL SEWA*
-╰ 📆 Tanggal  : ${tanggal}
-╰ 🕐 Jam      : ${order.jam}
-╰ ⏳ Durasi   : ${days} hari
-╰ 📍 Lokasi   : ${order.lokasi}
-╰ 🎉 Acara    : ${order.acara}
-╰ 🪞 Papan    : ${order.papan}
-╰ 🌸 Warna    : ${order.warna}
+- 📆 Tanggal  : ${tanggal}
+- 🕐 Jam      : ${order.jam}
+- ⏳ Durasi   : ${days} hari
+- 📍 Lokasi   : ${order.lokasi}
+- 🎉 Acara    : ${order.acara}
+- 🪞 Papan    : ${order.papan}
+- 🌸 Warna    : ${order.warna}
 
 💰 *PEMBAYARAN*
-╰ 💵 Total Sewa : *${formatMoney(order.harga)}*
+- 💵 Total Sewa : *${formatMoney(order.harga)}*
 ${promoLine}╰ 💳 Min. DP 50% : *${formatMoney(Math.ceil(order.harga*0.5))}*
 ${proofLine}
 
 ✍️ *UCAPAN / TULISAN DI PAPAN*
-┌─────────────────────
-${order.ucapan || '-'}
-└─────────────────────
 
-━━━━━━━━━━━━━━━━━━━━━
+${order.ucapan || '-'}
+
+
+
 Mohon dikonfirmasi ya kak Admin 🙏
 Terima kasih, Velora.id 💕`;
 }
