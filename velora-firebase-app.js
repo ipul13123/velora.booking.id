@@ -300,51 +300,90 @@ function updatePriceWithPromo(){
   } else g.style.display='none';
 }
 
-// ══════════════ FILE UPLOAD (base64 stored in Firestore) ══════════════
+// ══════════════ FILE UPLOAD → FIREBASE STORAGE ══════════════
+// Storage instance — diinisialisasi setelah firebase.initializeApp()
+let storage;
+try { storage = firebase.storage(); } catch(e) { console.warn('Firebase Storage belum tersedia:', e); }
+
+let uploadedProofFile = null; // File object yang akan diupload saat submit
+
 function handleFileSelect(input){
-  const file=input.files[0];
+  const file = input.files[0];
   if(!file) return;
-  processUploadFile(file);
+  previewProofFile(file);
 }
 function handleFileDrop(event){
   event.preventDefault();
   document.getElementById('upload-zone').classList.remove('drag-over');
-  const file=event.dataTransfer.files[0];
+  const file = event.dataTransfer.files[0];
   if(!file) return;
-  processUploadFile(file);
+  previewProofFile(file);
 }
-function processUploadFile(file){
+function previewProofFile(file){
   if(!file.type.startsWith('image/')){ toast('Hanya file gambar yang diizinkan.'); return; }
-  if(file.size>5*1024*1024){ toast('Ukuran file maksimal 5MB.'); return; }
-  const progress=document.getElementById('upload-progress'), bar=document.getElementById('upload-progress-bar');
-  const status=document.getElementById('upload-status'), preview=document.getElementById('upload-preview');
-  progress.style.display='block'; bar.style.width='0%';
-  status.textContent='Memproses foto...';
-  const reader=new FileReader();
-  reader.onprogress=e=>{ if(e.lengthComputable) bar.style.width=(e.loaded/e.total*80)+'%'; };
-  reader.onload=e=>{
-    bar.style.width='100%';
-    uploadedProofUrl=e.target.result; // base64 data URL
-    document.getElementById('upload-preview-img').src=uploadedProofUrl;
-    document.getElementById('upload-preview-name').textContent=`📎 ${file.name} (${(file.size/1024).toFixed(0)} KB)`;
-    preview.style.display='block';
-    status.textContent='✅ Foto bukti siap dikirim bersama pesanan.';
-    setTimeout(()=>{ progress.style.display='none'; },600);
+  if(file.size > 5*1024*1024){ toast('Ukuran file maksimal 5MB.'); return; }
+  uploadedProofFile = file;
+  const status = document.getElementById('upload-status');
+  const preview = document.getElementById('upload-preview');
+  // Tampilkan preview lokal dulu
+  const reader = new FileReader();
+  reader.onload = e => {
+    document.getElementById('upload-preview-img').src = e.target.result;
+    document.getElementById('upload-preview-name').textContent = `📎 ${file.name} (${(file.size/1024).toFixed(0)} KB)`;
+    preview.style.display = 'block';
+    status.textContent = '📷 Foto siap — akan diupload saat kamu klik Konfirmasi Pesanan.';
   };
-  reader.onerror=()=>{ status.textContent='❌ Gagal membaca file.'; progress.style.display='none'; };
   reader.readAsDataURL(file);
 }
+
+// Upload ke Firebase Storage, return download URL
+async function uploadProofToStorage(file, bookingCode){
+  if(!storage){ throw new Error('Firebase Storage tidak tersedia. Aktifkan di Firebase Console.'); }
+  const ext = file.name.split('.').pop() || 'jpg';
+  const path = `bukti-pembayaran/${bookingCode}_${Date.now()}.${ext}`;
+  const storageRef = storage.ref().child(path);
+  const progress = document.getElementById('upload-progress');
+  const bar = document.getElementById('upload-progress-bar');
+  const status = document.getElementById('upload-status');
+  progress.style.display = 'block';
+  bar.style.width = '0%';
+  status.textContent = '⬆️ Mengupload bukti pembayaran...';
+  return new Promise((resolve, reject) => {
+    const task = storageRef.put(file);
+    task.on('state_changed',
+      snap => {
+        const pct = Math.round(snap.bytesTransferred / snap.totalBytes * 100);
+        bar.style.width = pct + '%';
+        status.textContent = `⬆️ Mengupload... ${pct}%`;
+      },
+      error => {
+        status.textContent = '❌ Upload gagal: ' + error.message;
+        progress.style.display = 'none';
+        reject(error);
+      },
+      async () => {
+        const url = await task.snapshot.ref.getDownloadURL();
+        bar.style.width = '100%';
+        status.textContent = '✅ Bukti berhasil diupload ke Firebase!';
+        setTimeout(() => { progress.style.display = 'none'; }, 800);
+        resolve(url);
+      }
+    );
+  });
+}
+
 function clearUpload(){
-  uploadedProofUrl='';
-  document.getElementById('proof-file-input').value='';
-  document.getElementById('upload-preview').style.display='none';
-  document.getElementById('upload-status').textContent='';
-  document.getElementById('upload-progress').style.display='none';
+  uploadedProofFile = null;
+  uploadedProofUrl = '';
+  document.getElementById('proof-file-input').value = '';
+  document.getElementById('upload-preview').style.display = 'none';
+  document.getElementById('upload-status').textContent = '';
+  document.getElementById('upload-progress').style.display = 'none';
 }
 function openProofModal(src){
-  const modal=document.getElementById('proof-modal'), img=document.getElementById('proof-modal-img');
-  if(!modal||!img) return;
-  img.src=src;
+  const modal = document.getElementById('proof-modal'), img = document.getElementById('proof-modal-img');
+  if(!modal||!img||!src) return;
+  img.src = src;
   modal.classList.add('active');
 }
 
@@ -451,9 +490,9 @@ function buildOrderWhatsAppMessage(order){
   const promoLine=order.promoDiscount ? `Promo: 🎁 ${order.promoLabel} (-${order.promoDiscount}%)` : '';
   const proofLine=order.proofUrl ? `Bukti Pembayaran: [Terlampir di pesanan / sudah diupload]` : 'Bukti Pembayaran: (Akan saya kirimkan segera)';
   return [
-    'Halo Admin, saya sudah membuat pesanan. Berikut detailnya:',
+    'Halo Admin Velora, saya sudah membuat pesanan. Berikut detailnya:',
     '',
-    `*DETAIL PESANAN*`,
+    `📋 *DETAIL PESANAN*`,
     `Kode Booking: *${order.bookingCode || order.id || '-'}*`,
     `Nama: ${order.nama}`,
     `No. HP: ${order.hp}`,
@@ -465,13 +504,13 @@ function buildOrderWhatsAppMessage(order){
     `Jenis Papan: ${order.papan}`,
     `Warna Bunga: ${order.warna}`,
     '',
-    `*PEMBAYARAN*`,
+    `💰 *PEMBAYARAN*`,
     `Total Sewa: *${formatMoney(order.harga)}*`,
     promoLine,
     `Min. DP 50%: *${formatMoney(Math.ceil(order.harga*0.5))}*`,
     proofLine,
     '',
-    `*UCAPAN*`,
+    `✍️ *UCAPAN*`,
     order.ucapan,
     '',
     'Mohon diproses ya, Admin. Terima kasih 🌸'
@@ -694,15 +733,35 @@ async function submitOrder(){
   if(papan === 'Papan Gantung' && !['Pink','Merah'].includes(warna)){ toast('Papan Gantung hanya tersedia bunga Pink dan Merah.'); return; }
   const availability=getAvailabilityCheck(tanggalMulai,tanggalSelesai,papan);
   if(availability.ready===false){ toast(availability.message); updateAvailability(); return; }
-  const order={nama:document.getElementById('f-nama').value.trim(),hp:document.getElementById('f-hp').value.trim(),identitas:document.getElementById('f-id').value,tanggal:tanggalMulai,tanggalMulai,tanggalSelesai,tanggalList,jam:document.getElementById('f-jam').value,durasi:`${jumlahHari} Hari`,jumlahHari,lokasi:document.getElementById('f-lokasi').value.trim(),warna:document.getElementById('f-warna').value,acara,papan,hargaSatuanBase,hargaSatuan,harga,promoLabel:promo?promo.label:'',promoDiscount:promo?promo.discount:0,paidAmount:0,paymentStatus:'Belum Bayar',ucapan:document.getElementById('f-ucapan').value.trim(),status:'Pending',proofUrl:uploadedProofUrl||'',createdAt:firebase.firestore.FieldValue.serverTimestamp(),createdAtText:new Date().toISOString()};
-  const newOrder=ordersRef.doc();
+
+  // Disable tombol submit selama proses
+  const submitBtn = document.getElementById('submit-order-btn');
+  if(submitBtn){ submitBtn.disabled=true; submitBtn.textContent='⏳ Memproses...'; }
+
+  // Generate booking code dulu (untuk nama file Storage)
+  const newOrder = ordersRef.doc();
+  const bookingCode = `VEL-${compactDate(toDateStr(new Date()))}-${newOrder.id.slice(0,5).toUpperCase()}`;
+
+  // Upload bukti ke Firebase Storage dulu jika ada
+  let proofUrl = '';
+  if(uploadedProofFile){
+    try {
+      proofUrl = await uploadProofToStorage(uploadedProofFile, bookingCode);
+    } catch(e) {
+      console.warn('Upload bukti gagal, lanjut tanpa bukti:', e);
+      document.getElementById('upload-status').textContent = '⚠️ Upload bukti gagal, pesanan tetap dikirim tanpa bukti.';
+      proofUrl = '';
+    }
+  }
+
+  const order={nama:document.getElementById('f-nama').value.trim(),hp:document.getElementById('f-hp').value.trim(),identitas:document.getElementById('f-id').value,tanggal:tanggalMulai,tanggalMulai,tanggalSelesai,tanggalList,jam:document.getElementById('f-jam').value,durasi:`${jumlahHari} Hari`,jumlahHari,lokasi:document.getElementById('f-lokasi').value.trim(),warna:document.getElementById('f-warna').value,acara,papan,hargaSatuanBase,hargaSatuan,harga,promoLabel:promo?promo.label:'',promoDiscount:promo?promo.discount:0,paidAmount:0,paymentStatus:'Belum Bayar',ucapan:document.getElementById('f-ucapan').value.trim(),status:'Pending',bookingCode,proofUrl,createdAt:firebase.firestore.FieldValue.serverTimestamp(),createdAtText:new Date().toISOString()};
+
   try{
     await db.runTransaction(async tx=>{
       const sd=await tx.get(stockRef), bd=await tx.get(blockedRef), dd=await tx.get(dailyStockRef);
       const stock=sd.exists&&sd.data().items?stockBase(sd.data().items):stockBase(DEFAULT_STOCK);
       const blocked=bd.exists&&Array.isArray(bd.data().dates)?bd.data().dates:[];
       const daily=dd.exists&&dd.data().items?dd.data().items:{};
-      order.bookingCode=`VEL-${compactDate(toDateStr(new Date()))}-${newOrder.id.slice(0,5).toUpperCase()}`;
       const usageDocs=await Promise.all(tanggalList.map(d=>tx.get(usageRef.doc(d))));
       for(let i=0;i<tanggalList.length;i++){
         const d=tanggalList[i], counts=usageDocs[i].exists&&usageDocs[i].data().counts?usageDocs[i].data().counts:{};
@@ -716,19 +775,24 @@ async function submitOrder(){
         tx.set(usageRef.doc(d),{counts:{...counts,[papan]:(counts[papan]||0)+1}},{merge:true});
       });
     });
-  }catch(e){ if(String(e.message).startsWith('blocked:')) toast('Tanggal '+formatDate(e.message.split(':')[1])+' sedang tidak tersedia.'); else if(String(e.message).startsWith('out:')) toast('Stok papan ini habis pada '+formatDate(e.message.split(':')[1])+'.'); else err(e); return; }
+  }catch(e){
+    if(submitBtn){ submitBtn.disabled=false; submitBtn.textContent='🌸 Konfirmasi Pesanan'; }
+    if(String(e.message).startsWith('blocked:')) toast('Tanggal '+formatDate(e.message.split(':')[1])+' sedang tidak tersedia.');
+    else if(String(e.message).startsWith('out:')) toast('Stok papan ini habis pada '+formatDate(e.message.split(':')[1])+'.');
+    else err(e);
+    return;
+  }
+
   const promoRow=order.promoDiscount?`<div class="row"><span>Promo</span><span style="color:var(--pink-deep)">🎁 ${order.promoLabel} (-${order.promoDiscount}%)</span></div>`:'';
   document.getElementById('success-summary').innerHTML=`<div class="row"><span>Kode Booking</span><span>${order.bookingCode}</span></div><div class="row"><span>Nama</span><span>${order.nama}</span></div><div class="row"><span>Tanggal</span><span>${formatDateRange(order.tanggalMulai,order.tanggalSelesai)} · ${order.jam}</span></div><div class="row"><span>Jenis</span><span>${order.papan} · ${order.acara}</span></div><div class="row"><span>Lokasi</span><span>${order.lokasi}</span></div><div class="row"><span>Durasi</span><span>${order.jumlahHari} hari</span></div><div class="row"><span>Harga / hari</span><span>${formatMoney(order.hargaSatuan)}</span></div>${promoRow}<div class="row"><span>Total Sewa</span><span>${formatMoney(order.harga)}</span></div><div class="row"><span>Min. DP (50%)</span><span style="color:var(--pink-deep)">${formatMoney(Math.ceil(order.harga*0.5))}</span></div>`;
   const waMessage = buildOrderWhatsAppMessage(order);
   const waLink = getWhatsAppLink(waMessage);
   const waBtn = document.getElementById('wa-success-btn');
-  if(waBtn){
-    waBtn.style.display='inline-flex';
-    waBtn.onclick=()=>window.open(waLink,'_blank');
-  }
+  if(waBtn){ waBtn.style.display='inline-flex'; waBtn.onclick=()=>window.open(waLink,'_blank'); }
   ['f-nama','f-hp','f-tgl-mulai','f-tgl-selesai','f-jam','f-lokasi','f-ucapan'].forEach(id=>document.getElementById(id).value='');
   ['f-id','f-warna','f-acara','f-papan'].forEach(id=>document.getElementById(id).value='');
   clearUpload();
+  if(submitBtn){ submitBtn.disabled=false; submitBtn.textContent='🌸 Konfirmasi Pesanan'; }
   document.getElementById('price-group').style.display='none'; updateAvailability(); showPage('sukses');
   setTimeout(()=>window.open(waLink,'_blank'), 350);
 }
@@ -889,6 +953,28 @@ function exportXLSX(){
   toast('Excel berhasil diexport');
 }
 function copyText(text){ navigator.clipboard.writeText(text).catch(()=>{}); toast('Nomor '+text+' disalin!'); }
+
+// ── Mobile Bottom Nav sync ──
+function setBnavActive(id){
+  document.querySelectorAll('.bnav-item').forEach(el=>{
+    if(!el.classList.contains('bnav-wa') && !el.classList.contains('bnav-pesan'))
+      el.classList.remove('active');
+  });
+  const el=document.getElementById(id);
+  if(el) el.classList.add('active');
+}
+// Patch showPage to also sync bottom nav
+const _origShowPage = typeof showPage === 'function' ? showPage : null;
+function showPage(page){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  const el=document.getElementById('page-'+page);
+  if(el) el.classList.add('active');
+  window.scrollTo({top:0,behavior:'smooth'});
+  closeMobileMenu();
+  // sync bottom nav
+  const map={home:'bnav-home',gallery:'bnav-gallery',pesan:'bnav-pesan',cek:'bnav-cek'};
+  if(map[page]) setBnavActive(map[page]);
+}
 
 document.getElementById('admin-pass-input').addEventListener('keydown',e=>{if(e.key==='Enter')checkAdminLogin();});
 document.getElementById('admin-email-input').addEventListener('keydown',e=>{if(e.key==='Enter')checkAdminLogin();});
