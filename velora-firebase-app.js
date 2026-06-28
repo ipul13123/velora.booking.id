@@ -748,7 +748,7 @@ function printNota(id){
     <div class="nota-header">
       <div class="nota-brand">✦ velora.id</div>
       <div class="nota-tagline">Beauty Reflections — Sewa Papan Ucapan</div>
-      <div class="nota-badge">✅ NOTA LUNAS</div>
+      <div class="nota-badge">📄 INVOICE</div>
     </div>
     <div class="nota-body">
       <div class="nota-kode">
