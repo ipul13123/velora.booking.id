@@ -524,6 +524,95 @@
   .img-modal-overlay img { max-width:90vw; max-height:90vh; border-radius:12px; object-fit:contain; }
   .img-modal-close { position:absolute; top:20px; right:24px; background:none; border:none; color:white; font-size:2rem; cursor:pointer; }
 
+  /* ══════════ NOTA CETAK ══════════ */
+  #nota-overlay {
+    display:none; position:fixed; inset:0; z-index:700;
+    background:rgba(45,31,46,0.75); backdrop-filter:blur(6px);
+    align-items:center; justify-content:center; padding:20px;
+  }
+  #nota-overlay.active { display:flex; }
+  .nota-sheet {
+    background:#fff; width:100%; max-width:420px;
+    border-radius:20px; overflow:hidden;
+    box-shadow:0 24px 80px rgba(0,0,0,0.3);
+    font-family:'DM Sans',sans-serif; color:#2d1f2e;
+  }
+  .nota-header {
+    background:linear-gradient(135deg,#e87fa0,#c9a96e);
+    padding:22px 24px 18px; text-align:center; color:white;
+  }
+  .nota-header .nota-brand {
+    font-family:'Playfair Display',serif;
+    font-size:1.6rem; font-weight:700; letter-spacing:.04em;
+  }
+  .nota-header .nota-tagline { font-size:.75rem; opacity:.85; margin-top:2px; }
+  .nota-header .nota-badge {
+    display:inline-block; margin-top:10px;
+    background:rgba(255,255,255,0.25); border:1.5px solid rgba(255,255,255,0.5);
+    border-radius:50px; padding:4px 16px; font-size:.8rem; font-weight:600; letter-spacing:.08em;
+  }
+  .nota-body { padding:20px 24px; }
+  .nota-kode {
+    text-align:center; background:#fff5f8; border-radius:12px;
+    padding:10px; margin-bottom:16px; border:1.5px dashed #f4a7b9;
+    font-size:.75rem; color:#9e8a9f;
+  }
+  .nota-kode strong { display:block; font-family:'Playfair Display',serif; font-size:1.05rem; color:#2d1f2e; letter-spacing:.05em; }
+  .nota-divider { border:none; border-top:1.5px dashed #f0d8f0; margin:14px 0; }
+  .nota-row {
+    display:flex; justify-content:space-between; align-items:baseline;
+    gap:8px; padding:4px 0; font-size:.82rem;
+  }
+  .nota-row .nk { color:#9e8a9f; flex-shrink:0; }
+  .nota-row .nv { font-weight:500; text-align:right; word-break:break-word; }
+  .nota-ucapan {
+    background:#fff5f8; border-radius:10px; padding:10px 12px;
+    font-size:.8rem; color:#3d2c3e; white-space:pre-wrap;
+    line-height:1.6; margin:10px 0; border-left:3px solid #f4a7b9;
+  }
+  .nota-total-box {
+    background:linear-gradient(135deg,#fff0f5,#fff8e8);
+    border:2px solid #f4a7b9; border-radius:14px;
+    padding:14px 16px; margin-top:14px; text-align:center;
+  }
+  .nota-total-box .nt-label { font-size:.75rem; color:#9e8a9f; margin-bottom:4px; }
+  .nota-total-box .nt-amount {
+    font-family:'Playfair Display',serif; font-size:1.6rem;
+    font-weight:700; color:#e87fa0;
+  }
+  .nota-total-box .nt-status {
+    display:inline-block; margin-top:6px;
+    background:#d1fae5; color:#065f46; border-radius:50px;
+    padding:3px 14px; font-size:.75rem; font-weight:700;
+  }
+  .nota-footer {
+    background:#fff5f8; padding:14px 24px; text-align:center;
+    border-top:1px solid #f0d8f0; font-size:.73rem; color:#9e8a9f; line-height:1.6;
+  }
+  .nota-actions {
+    display:flex; gap:10px; padding:16px 24px 20px; justify-content:center;
+  }
+  .nota-actions button {
+    flex:1; padding:11px; border-radius:12px; font-size:.85rem; font-weight:600;
+    cursor:pointer; border:none; transition:opacity .15s;
+  }
+  .nota-actions button:hover { opacity:.88; }
+  .nota-btn-print { background:linear-gradient(135deg,#e87fa0,#c9a96e); color:white; }
+  .nota-btn-close { background:#f0e8f0; color:#2d1f2e; }
+
+  /* Print styles — hanya nota yang tercetak */
+  @media print {
+    body > *:not(#nota-overlay) { display:none !important; }
+    #nota-overlay {
+      display:block !important; position:static !important;
+      background:none !important; padding:0 !important;
+    }
+    .nota-sheet { box-shadow:none !important; border-radius:0 !important; max-width:100% !important; }
+    .nota-actions { display:none !important; }
+    .nota-header { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    .nota-total-box { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  }
+
   /* responsive */
   @media(max-width:640px){
     body { overflow-x:hidden; }
@@ -1147,6 +1236,13 @@
 <div class="img-modal-overlay" id="proof-modal" onclick="this.classList.remove('active')">
   <button class="img-modal-close" onclick="document.getElementById('proof-modal').classList.remove('active')">×</button>
   <img id="proof-modal-img" src="" alt="Bukti Pembayaran">
+</div>
+
+<!-- NOTA CETAK OVERLAY -->
+<div id="nota-overlay" onclick="if(event.target===this)closeNota()">
+  <div class="nota-sheet" id="nota-sheet">
+    <!-- diisi oleh JS -->
+  </div>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>

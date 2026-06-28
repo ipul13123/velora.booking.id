@@ -733,6 +733,68 @@ async function submitOrder(){
   setTimeout(()=>window.open(waLink,'_blank'), 350);
 }
 
+// ══════════════ CETAK NOTA ══════════════
+function printNota(id){
+  const o = orders.find(x => x.id === id);
+  if(!o) return;
+  const promoLine = o.promoDiscount
+    ? `<div class="nota-row"><span class="nk">Promo</span><span class="nv" style="color:#e87fa0">🎁 ${o.promoLabel} -${o.promoDiscount}%</span></div>`
+    : '';
+  const now = new Date();
+  const printDate = now.toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'});
+  const printTime = now.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+
+  document.getElementById('nota-sheet').innerHTML = `
+    <div class="nota-header">
+      <div class="nota-brand">✦ velora.id</div>
+      <div class="nota-tagline">Beauty Reflections — Sewa Papan Ucapan</div>
+      <div class="nota-badge">✅ NOTA LUNAS</div>
+    </div>
+    <div class="nota-body">
+      <div class="nota-kode">
+        Kode Booking
+        <strong>${o.bookingCode || o.id}</strong>
+      </div>
+      <div class="nota-row"><span class="nk">Nama</span><span class="nv">${o.nama}</span></div>
+      <div class="nota-row"><span class="nk">No. HP</span><span class="nv">${o.hp}</span></div>
+      <div class="nota-row"><span class="nk">Identitas</span><span class="nv">${o.identitas || '-'}</span></div>
+      <hr class="nota-divider">
+      <div class="nota-row"><span class="nk">Tanggal Sewa</span><span class="nv">${formatDateRange(o.tanggalMulai||o.tanggal, o.tanggalSelesai||o.tanggal)}</span></div>
+      <div class="nota-row"><span class="nk">Jam</span><span class="nv">${o.jam}</span></div>
+      <div class="nota-row"><span class="nk">Durasi</span><span class="nv">${o.jumlahHari || rentalDays(o.tanggalMulai||o.tanggal, o.tanggalSelesai||o.tanggal)} hari</span></div>
+      <div class="nota-row"><span class="nk">Lokasi</span><span class="nv">${o.lokasi}</span></div>
+      <div class="nota-row"><span class="nk">Jenis Papan</span><span class="nv">${o.papan}</span></div>
+      <div class="nota-row"><span class="nk">Warna Bunga</span><span class="nv">${o.warna}</span></div>
+      <div class="nota-row"><span class="nk">Kebutuhan</span><span class="nv">${o.acara}</span></div>
+      <hr class="nota-divider">
+      <div class="nota-row"><span class="nk">Harga / hari</span><span class="nv">${formatMoney(o.hargaSatuan || (o.harga / (o.jumlahHari || 1)))}</span></div>
+      ${promoLine}
+      <div class="nota-row"><span class="nk">Jumlah hari</span><span class="nv">${o.jumlahHari || rentalDays(o.tanggalMulai||o.tanggal, o.tanggalSelesai||o.tanggal)} hari</span></div>
+      <hr class="nota-divider">
+      <p style="font-size:.75rem;color:#9e8a9f;margin-bottom:4px;">Ucapan / Tulisan di Papan:</p>
+      <div class="nota-ucapan">${o.ucapan || '-'}</div>
+      <div class="nota-total-box">
+        <div class="nt-label">Total Biaya Sewa</div>
+        <div class="nt-amount">${formatMoney(o.harga)}</div>
+        <div class="nt-status">✓ LUNAS</div>
+      </div>
+    </div>
+    <div class="nota-footer">
+      Dicetak: ${printDate}, ${printTime}<br>
+      Terima kasih telah mempercayakan momen istimewa Anda kepada Velora.id 🌸<br>
+      <strong>@velora.id</strong>
+    </div>
+    <div class="nota-actions">
+      <button class="nota-btn-close" onclick="closeNota()">✕ Tutup</button>
+      <button class="nota-btn-print" onclick="window.print()">🖨️ Cetak / Simpan PDF</button>
+    </div>
+  `;
+  document.getElementById('nota-overlay').classList.add('active');
+}
+function closeNota(){
+  document.getElementById('nota-overlay').classList.remove('active');
+}
+
 function renderAdmin(){
   const total=orders.length,pending=orders.filter(o=>o.status==='Pending').length,dp=orders.filter(o=>o.status==='DP').length,lunas=orders.filter(o=>o.status==='Lunas').length,revenue=orders.filter(o=>o.status!=='Batal').reduce((a,o)=>a+(Number(o.harga)||0),0),paid=orders.filter(o=>o.status!=='Batal').reduce((a,o)=>a+paidAmount(o),0);
   document.getElementById('stats-row').innerHTML=`<div class="stat-card"><div class="num">${total}</div><div class="lbl">Total Pesanan</div></div><div class="stat-card"><div class="num" style="color:#856404">${pending}</div><div class="lbl">Pending</div></div><div class="stat-card"><div class="num" style="color:#084298">${dp}</div><div class="lbl">Sudah DP</div></div><div class="stat-card"><div class="num" style="color:#0a3622">${lunas}</div><div class="lbl">Lunas</div></div><div class="stat-card"><div class="num" style="font-size:1.2rem;color:var(--pink-deep)">${formatMoney(paid)}</div><div class="lbl">Uang Masuk</div></div><div class="stat-card"><div class="num" style="font-size:1.2rem;color:var(--pink-deep)">${formatMoney(revenue)}</div><div class="lbl">Total Tagihan</div></div>`;
@@ -762,7 +824,7 @@ function renderTable(){
   tbody.innerHTML=filtered.map((o,i)=>{
     const oid=o.id;
     const actualProofBtn=o.proofUrl?`<button class="action-btn" style="background:#fff3cd;color:#664d03;font-size:.7rem;" onclick="openProofModal(orders.find(x=>x.id==='${oid}')?.proofUrl||'')">📎 Bukti</button>`:'';
-    return `<tr><td>${i+1}</td><td><strong>${o.nama}</strong><br><span style="color:var(--muted);font-size:.75rem">${o.bookingCode || o.id}</span><br><span style="color:var(--muted);font-size:.75rem">${o.hp}</span>${o.promoDiscount?`<br><span class="promo-badge" style="font-size:.65rem;">PROMO -${o.promoDiscount}%</span>`:''}</td><td>${formatDateRange(o.tanggalMulai||o.tanggal,o.tanggalSelesai||o.tanggal)}<br><span style="color:var(--muted);font-size:.75rem">${o.jam} · ${o.jumlahHari || rentalDays(o.tanggalMulai||o.tanggal,o.tanggalSelesai||o.tanggal)} hari</span></td><td>${o.acara}</td><td>${o.papan}</td><td style="font-weight:600;color:var(--pink-deep)">${formatMoney(o.harga)}<br><span style="color:#0a3622;font-size:.75rem">Masuk: ${formatMoney(paidAmount(o))}</span><br><span style="color:var(--muted);font-size:.75rem">Sisa: ${formatMoney(remainingAmount(o))}</span></td><td><span class="badge badge-${String(o.status).toLowerCase().replace(' ','')}">${o.status}</span></td><td><div class="action-btns"><button class="action-btn confirm" onclick="viewOrder('${oid}')">👁</button>${actualProofBtn}${o.status!=='Lunas'&&o.status!=='Batal'?`<button class="action-btn dp" onclick="setPaymentStatus('${oid}','DP')">DP</button>`:''}${o.status!=='Lunas'&&o.status!=='Batal'?`<button class="action-btn confirm" onclick="setPaymentStatus('${oid}','Lunas')">Lunas</button>`:''}${o.status!=='Batal'?`<button class="action-btn cancel" onclick="setStatus('${oid}','Batal')">Batal</button>`:''}<button class="action-btn delete" onclick="deleteOrder('${oid}')">🗑</button></div></td></tr>`;
+    return `<tr><td>${i+1}</td><td><strong>${o.nama}</strong><br><span style="color:var(--muted);font-size:.75rem">${o.bookingCode || o.id}</span><br><span style="color:var(--muted);font-size:.75rem">${o.hp}</span>${o.promoDiscount?`<br><span class="promo-badge" style="font-size:.65rem;">PROMO -${o.promoDiscount}%</span>`:''}</td><td>${formatDateRange(o.tanggalMulai||o.tanggal,o.tanggalSelesai||o.tanggal)}<br><span style="color:var(--muted);font-size:.75rem">${o.jam} · ${o.jumlahHari || rentalDays(o.tanggalMulai||o.tanggal,o.tanggalSelesai||o.tanggal)} hari</span></td><td>${o.acara}</td><td>${o.papan}</td><td style="font-weight:600;color:var(--pink-deep)">${formatMoney(o.harga)}<br><span style="color:#0a3622;font-size:.75rem">Masuk: ${formatMoney(paidAmount(o))}</span><br><span style="color:var(--muted);font-size:.75rem">Sisa: ${formatMoney(remainingAmount(o))}</span></td><td><span class="badge badge-${String(o.status).toLowerCase().replace(' ','')}">${o.status}</span></td><td><div class="action-btns"><button class="action-btn confirm" onclick="viewOrder('${oid}')">👁</button>${actualProofBtn}${o.status==='Lunas'?`<button class="action-btn" style="background:#e8f5e9;color:#1b5e20;font-size:.7rem;" onclick="printNota('${oid}')">🖨️ Nota</button>`:''}${o.status!=='Lunas'&&o.status!=='Batal'?`<button class="action-btn dp" onclick="setPaymentStatus('${oid}','DP')">DP</button>`:''}${o.status!=='Lunas'&&o.status!=='Batal'?`<button class="action-btn confirm" onclick="setPaymentStatus('${oid}','Lunas')">Lunas</button>`:''}${o.status!=='Batal'?`<button class="action-btn cancel" onclick="setStatus('${oid}','Batal')">Batal</button>`:''}<button class="action-btn delete" onclick="deleteOrder('${oid}')">🗑</button></div></td></tr>`;
   }).join('');
 }
 async function adjustUsageRange(tx,order,delta){
@@ -792,7 +854,7 @@ function viewOrder(id){
   const promoHtml=o.promoDiscount?`<div class="detail-row"><span class="key">Promo</span><span class="val"><span class="promo-badge">🎁 ${o.promoLabel} -${o.promoDiscount}%</span></span></div>`:'';
   const proofHtml=o.proofUrl?`<div class="detail-row"><span class="key">Bukti Bayar</span><span class="val"><img src="${o.proofUrl}" class="proof-thumb" onclick="openProofModal(orders.find(x=>x.id==='${o.id}')?.proofUrl||'')" title="Klik untuk perbesar"><br><span style="font-size:.73rem;color:var(--muted);">Klik foto untuk perbesar</span></span></div>`:'<div class="detail-row"><span class="key">Bukti Bayar</span><span class="val" style="color:var(--muted);">Belum upload</span></div>';
   document.getElementById('modal-content').innerHTML=`<div class="detail-row"><span class="key">Kode Booking</span><span class="val">${o.bookingCode || o.id}</span></div><div class="detail-row"><span class="key">Nama</span><span class="val">${o.nama}</span></div><div class="detail-row"><span class="key">No. HP</span><span class="val">${o.hp}</span></div><div class="detail-row"><span class="key">Identitas</span><span class="val">${o.identitas}</span></div><div class="detail-row"><span class="key">Tanggal</span><span class="val">${formatDateRange(o.tanggalMulai||o.tanggal,o.tanggalSelesai||o.tanggal)} · ${o.jam}</span></div><div class="detail-row"><span class="key">Durasi</span><span class="val">${o.jumlahHari || rentalDays(o.tanggalMulai||o.tanggal,o.tanggalSelesai||o.tanggal)} hari</span></div><div class="detail-row"><span class="key">Lokasi</span><span class="val">${o.lokasi}</span></div><div class="detail-row"><span class="key">Warna Bunga</span><span class="val">${o.warna}</span></div><div class="detail-row"><span class="key">Acara</span><span class="val">${o.acara}</span></div><div class="detail-row"><span class="key">Jenis Papan</span><span class="val">${o.papan}</span></div><div class="detail-row"><span class="key">Harga</span><span class="val" style="color:var(--pink-deep);font-weight:700">${formatMoney(o.harga)}</span></div>${promoHtml}<div class="detail-row"><span class="key">Uang Masuk</span><span class="val">${formatMoney(paidAmount(o))}</span></div><div class="detail-row"><span class="key">Sisa Bayar</span><span class="val">${formatMoney(remainingAmount(o))}</span></div><div class="detail-row"><span class="key">Status</span><span class="val"><span class="badge badge-${String(o.status).toLowerCase()}">${o.status}</span></span></div>${proofHtml}<div class="detail-row"><span class="key">Ucapan</span><span class="val" style="white-space:pre-wrap">${o.ucapan}</span></div><div class="detail-row"><span class="key">Dipesan</span><span class="val">${createdLabel(o)}</span></div>`;
-  document.getElementById('modal-actions').innerHTML=`${o.status!=='Lunas'&&o.status!=='Batal'?`<button class="action-btn dp" onclick="setPaymentStatus('${o.id}','DP');closeModal()">Catat DP</button><button class="action-btn confirm" onclick="setPaymentStatus('${o.id}','Lunas');closeModal()">Tandai Lunas</button>`:''}`;
+  document.getElementById('modal-actions').innerHTML=`${o.status!=='Lunas'&&o.status!=='Batal'?`<button class="action-btn dp" onclick="setPaymentStatus('${o.id}','DP');closeModal()">Catat DP</button><button class="action-btn confirm" onclick="setPaymentStatus('${o.id}','Lunas');closeModal()">Tandai Lunas</button>`:''} ${o.status==='Lunas'?`<button class="action-btn" style="background:#e8f5e9;color:#1b5e20;padding:8px 16px;font-size:.82rem;font-weight:600;" onclick="closeModal();printNota('${o.id}')">🖨️ Cetak Nota Lunas</button>`:''}`;
   document.getElementById('detail-modal').classList.add('active');
 }
 function closeModal(){document.getElementById('detail-modal').classList.remove('active');}
