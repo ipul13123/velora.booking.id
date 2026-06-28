@@ -451,47 +451,42 @@ function buildOrderWhatsAppMessage(order){
   const days = order.jumlahHari || rentalDays(order.tanggalMulai||order.tanggal, order.tanggalSelesai||order.tanggal);
   const tanggal = formatDateRange(order.tanggalMulai||order.tanggal, order.tanggalSelesai||order.tanggal);
   const promoLine = order.promoDiscount
-    ? `╰ 🎁 *Promo:* ${order.promoLabel} (-${order.promoDiscount}%)\n`
+    ? `- Promo     : ${order.promoLabel} (-${order.promoDiscount}%)\n`
     : '';
   const proofLine = order.proofUrl
-    ? `╰ 📎 *Bukti:* Sudah diupload bersama pesanan`
-    : `╰ 📎 *Bukti:* Akan saya kirimkan segera`;
+    ? `- Bukti     : Sudah diupload bersama pesanan`
+    : `- Bukti     : Akan saya kirimkan segera`;
 
-  return `✦ *VELORA.ID* — Beauty Reflections ✦
+  return `*[ VELORA.ID - Beauty Reflections ]*
+*PESANAN BARU*
 
-🌸 *PESANAN BARU MASUK* 🌸
+*KODE BOOKING*
+*${order.bookingCode || order.id || '-'}*
 
+*DATA PENYEWA*
+- Nama      : ${order.nama}
+- No. HP    : ${order.hp}
+- Identitas : ${order.identitas || '-'}
 
-📋 *KODE BOOKING*
-╰ *${order.bookingCode || order.id || '-'}*
+*DETAIL SEWA*
+- Tanggal   : ${tanggal}
+- Jam       : ${order.jam}
+- Durasi    : ${days} hari
+- Lokasi    : ${order.lokasi}
+- Acara     : ${order.acara}
+- Papan     : ${order.papan}
+- Warna     : ${order.warna}
 
-👤 *DATA PENYEWA*
-- 🪪 Nama     : ${order.nama}
-- 📱 No. HP   : ${order.hp}
-- 🆔 Identitas: ${order.identitas || '-'}
-
-📅 *DETAIL SEWA*
-- 📆 Tanggal  : ${tanggal}
-- 🕐 Jam      : ${order.jam}
-- ⏳ Durasi   : ${days} hari
-- 📍 Lokasi   : ${order.lokasi}
-- 🎉 Acara    : ${order.acara}
-- 🪞 Papan    : ${order.papan}
-- 🌸 Warna    : ${order.warna}
-
-💰 *PEMBAYARAN*
-- 💵 Total Sewa : *${formatMoney(order.harga)}*
-${promoLine}╰ 💳 Min. DP 50% : *${formatMoney(Math.ceil(order.harga*0.5))}*
+*PEMBAYARAN*
+- Total Sewa  : *${formatMoney(order.harga)}*
+${promoLine}- Min. DP 50% : *${formatMoney(Math.ceil(order.harga*0.5))}*
 ${proofLine}
 
-✍️ *UCAPAN / TULISAN DI PAPAN*
-
+*UCAPAN / TULISAN DI PAPAN*
 ${order.ucapan || '-'}
 
-
-
-Mohon dikonfirmasi ya kak Admin 🙏
-Terima kasih, Velora.id 💕`;
+Mohon dikonfirmasi ya kak Admin.
+Terima kasih, Velora.id`;
 }
 function assetWithVersion(src){
   if(!src) return '';
