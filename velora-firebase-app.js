@@ -767,62 +767,120 @@ async function submitOrder(){
 }
 
 // ══════════════ CETAK NOTA ══════════════
+function esc(v){
+  return String(v ?? '').replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
+}
+function notaLine(label,value){
+  return `<div class="nota-line"><span class="nota-key">${esc(label)}</span><span class="nota-val">${value}</span></div>`;
+}
 function printNota(id){
   const o = orders.find(x => x.id === id);
-  if(!o) return;
-  const promoLine = o.promoDiscount
-    ? `<div class="nota-row"><span class="nk">Promo</span><span class="nv" style="color:#e87fa0">🎁 ${o.promoLabel} -${o.promoDiscount}%</span></div>`
+  if(!o){ toast('Pesanan tidak ditemukan.'); return; }
+  const sheet=document.getElementById('nota-sheet'), overlay=document.getElementById('nota-overlay');
+  if(!sheet||!overlay){ toast('Template nota belum tersedia di halaman.'); return; }
+
+  const start=o.tanggalMulai||o.tanggal;
+  const end=o.tanggalSelesai||o.tanggal;
+  const days=o.jumlahHari || rentalDays(start,end);
+  const hargaSatuan=Number(o.hargaSatuan || ((Number(o.harga)||0) / Math.max(1,days))) || 0;
+  const paid=paidAmount(o);
+  const remain=remainingAmount(o);
+  const payStatus=o.status==='Lunas'||remain<=0 ? 'LUNAS' : (paid>0 ? 'DP MASUK' : 'BELUM BAYAR');
+  const statusNote=o.status==='Batal' ? 'DIBATALKAN' : payStatus;
+  const promoLine=o.promoDiscount
+    ? notaLine('Promo', `<span style="color:#e87fa0">🎁 ${esc(o.promoLabel)} -${esc(o.promoDiscount)}%</span>`)
     : '';
   const now = new Date();
   const printDate = now.toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'});
   const printTime = now.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
 
-  document.getElementById('nota-sheet').innerHTML = `
-    <div class="nota-header">
-      <div class="nota-brand">✦ velora.id</div>
-      <div class="nota-tagline">Beauty Reflections — Sewa Papan Ucapan</div>
-      <div class="nota-badge">📄 INVOICE</div>
-    </div>
-    <div class="nota-body">
-      <div class="nota-kode">
-        Kode Booking
-        <strong>${o.bookingCode || o.id}</strong>
+  sheet.innerHTML = `
+    <div class="nota-hero">
+      <div class="nota-topline">
+        <div class="nota-brandmark">
+          <div class="nota-monogram">V</div>
+          <div>
+            <div class="nota-brand-name">velora.id</div>
+            <div class="nota-brand-sub">Beauty Reflections</div>
+          </div>
+        </div>
+        <div class="nota-status-pill">${esc(statusNote)}</div>
       </div>
-      <div class="nota-row"><span class="nk">Nama</span><span class="nv">${o.nama}</span></div>
-      <div class="nota-row"><span class="nk">No. HP</span><span class="nv">${o.hp}</span></div>
-      <div class="nota-row"><span class="nk">Identitas</span><span class="nv">${o.identitas || '-'}</span></div>
-      <hr class="nota-divider">
-      <div class="nota-row"><span class="nk">Tanggal Sewa</span><span class="nv">${formatDateRange(o.tanggalMulai||o.tanggal, o.tanggalSelesai||o.tanggal)}</span></div>
-      <div class="nota-row"><span class="nk">Jam</span><span class="nv">${o.jam}</span></div>
-      <div class="nota-row"><span class="nk">Durasi</span><span class="nv">${o.jumlahHari || rentalDays(o.tanggalMulai||o.tanggal, o.tanggalSelesai||o.tanggal)} hari</span></div>
-      <div class="nota-row"><span class="nk">Lokasi</span><span class="nv">${o.lokasi}</span></div>
-      <div class="nota-row"><span class="nk">Jenis Papan</span><span class="nv">${o.papan}</span></div>
-      <div class="nota-row"><span class="nk">Warna Bunga</span><span class="nv">${o.warna}</span></div>
-      <div class="nota-row"><span class="nk">Kebutuhan</span><span class="nv">${o.acara}</span></div>
-      <hr class="nota-divider">
-      <div class="nota-row"><span class="nk">Harga / hari</span><span class="nv">${formatMoney(o.hargaSatuan || (o.harga / (o.jumlahHari || 1)))}</span></div>
-      ${promoLine}
-      <div class="nota-row"><span class="nk">Jumlah hari</span><span class="nv">${o.jumlahHari || rentalDays(o.tanggalMulai||o.tanggal, o.tanggalSelesai||o.tanggal)} hari</span></div>
-      <hr class="nota-divider">
-      <p style="font-size:.75rem;color:#9e8a9f;margin-bottom:4px;">Ucapan / Tulisan di Papan:</p>
-      <div class="nota-ucapan">${o.ucapan || '-'}</div>
-      <div class="nota-total-box">
-        <div class="nt-label">Total Biaya Sewa</div>
-        <div class="nt-amount">${formatMoney(o.harga)}</div>
-        <div class="nt-status">✓ LUNAS</div>
+      <div class="nota-title-row">
+        <div>
+          <div class="nota-title">Nota Pemesanan</div>
+          <div class="nota-brand-sub" style="margin-top:10px;">Sewa papan ucapan wisuda & event</div>
+        </div>
+        <div class="nota-code-box">
+          Kode Booking
+          <strong>${esc(o.bookingCode || o.id)}</strong>
+        </div>
       </div>
     </div>
-    <div class="nota-footer">
-      Dicetak: ${printDate}, ${printTime}<br>
-      Terima kasih telah mempercayakan momen istimewa Anda kepada Velora.id 🌸<br>
-      <strong>@velora.id</strong>
+
+    <div class="nota-content">
+      <div class="nota-grid">
+        <div class="nota-panel">
+          <h4>Data Pelanggan</h4>
+          ${notaLine('Nama', esc(o.nama || '-'))}
+          ${notaLine('No. HP', esc(o.hp || '-'))}
+          ${notaLine('Identitas', esc(o.identitas || '-'))}
+          ${notaLine('Dibuat', esc(createdLabel(o)))}
+        </div>
+        <div class="nota-panel">
+          <h4>Detail Sewa</h4>
+          ${notaLine('Tanggal', esc(formatDateRange(start,end)))}
+          ${notaLine('Jam', esc(o.jam || '-'))}
+          ${notaLine('Durasi', esc(days + ' hari'))}
+          ${notaLine('Lokasi', esc(o.lokasi || '-'))}
+          ${notaLine('Acara', esc(o.acara || '-'))}
+          ${notaLine('Papan', esc(o.papan || '-'))}
+          ${notaLine('Warna', esc(o.warna || '-'))}
+        </div>
+      </div>
+
+      <div class="nota-message">
+        <h4>Ucapan / Tulisan di Papan</h4>
+        <div class="nota-message-text">${esc(o.ucapan || '-')}</div>
+      </div>
+
+      <div class="nota-total-panel">
+        <div class="nota-payment-summary">
+          <h4>Ringkasan Pembayaran</h4>
+          ${notaLine('Harga / hari', esc(formatMoney(hargaSatuan)))}
+          ${notaLine('Jumlah hari', esc(days + ' hari'))}
+          ${promoLine}
+          ${notaLine('Total sewa', esc(formatMoney(o.harga)))}
+          ${notaLine('Uang masuk', esc(formatMoney(paid)))}
+          ${notaLine('Sisa bayar', esc(formatMoney(remain)))}
+        </div>
+        <div class="nota-grand-total">
+          <div>
+            <div class="total-label">Total Biaya Sewa</div>
+            <div class="total-amount">${esc(formatMoney(o.harga))}</div>
+          </div>
+          <div class="total-status">${esc(statusNote)}</div>
+        </div>
+      </div>
+
+      <div class="nota-footer-band">
+        <div>
+          Dicetak: ${esc(printDate)}, ${esc(printTime)}<br>
+          Simpan nota ini sebagai bukti pemesanan Velora.id.
+        </div>
+        <div class="nota-signature">
+          Terima kasih sudah mempercayakan momen istimewa Anda.
+          <strong>@velora.id</strong>
+        </div>
+      </div>
     </div>
+
     <div class="nota-actions">
-      <button class="nota-btn-close" onclick="closeNota()">✕ Tutup</button>
-      <button class="nota-btn-print" onclick="window.print()">🖨️ Cetak / Simpan PDF</button>
+      <button class="nota-btn close" onclick="closeNota()">Tutup</button>
+      <button class="nota-btn print" onclick="window.print()">Cetak / Simpan PDF</button>
     </div>
   `;
-  document.getElementById('nota-overlay').classList.add('active');
+  overlay.classList.add('active');
 }
 function closeNota(){
   document.getElementById('nota-overlay').classList.remove('active');
@@ -936,7 +994,7 @@ function renderTable(){
   tbody.innerHTML=filtered.map((o,i)=>{
     const oid=o.id;
     const actualProofBtn=o.proofUrl?`<button class="action-btn" style="background:#fff3cd;color:#664d03;font-size:.7rem;" onclick="openProofModal(orders.find(x=>x.id==='${oid}')?.proofUrl||'')">📎 Bukti</button>`:'';
-    return `<tr><td>${i+1}</td><td><strong>${o.nama}</strong><br><span style="color:var(--muted);font-size:.75rem">${o.bookingCode || o.id}</span><br><span style="color:var(--muted);font-size:.75rem">${o.hp}</span>${o.promoDiscount?`<br><span class="promo-badge" style="font-size:.65rem;">PROMO -${o.promoDiscount}%</span>`:''}</td><td>${formatDateRange(o.tanggalMulai||o.tanggal,o.tanggalSelesai||o.tanggal)}<br><span style="color:var(--muted);font-size:.75rem">${o.jam} · ${o.jumlahHari || rentalDays(o.tanggalMulai||o.tanggal,o.tanggalSelesai||o.tanggal)} hari</span></td><td>${o.acara}</td><td>${o.papan}</td><td style="font-weight:600;color:var(--pink-deep)">${formatMoney(o.harga)}<br><span style="color:#0a3622;font-size:.75rem">Masuk: ${formatMoney(paidAmount(o))}</span><br><span style="color:var(--muted);font-size:.75rem">Sisa: ${formatMoney(remainingAmount(o))}</span></td><td><span class="badge badge-${String(o.status).toLowerCase().replace(' ','')}">${o.status}</span></td><td><div class="action-btns"><button class="action-btn confirm" onclick="viewOrder('${oid}')">👁</button>${actualProofBtn}${o.status==='Lunas'?`<button class="action-btn" style="background:#e8f5e9;color:#1b5e20;font-size:.7rem;" onclick="printNota('${oid}')">🖨️ Nota</button>`:''}${o.status!=='Lunas'&&o.status!=='Batal'?`<button class="action-btn dp" onclick="setPaymentStatus('${oid}','DP')">DP</button>`:''}${o.status!=='Lunas'&&o.status!=='Batal'?`<button class="action-btn confirm" onclick="setPaymentStatus('${oid}','Lunas')">Lunas</button>`:''}${o.status!=='Batal'?`<button class="action-btn cancel" onclick="setStatus('${oid}','Batal')">Batal</button>`:''}<button class="action-btn delete" onclick="deleteOrder('${oid}')">🗑</button></div></td></tr>`;
+    return `<tr><td>${i+1}</td><td><strong>${o.nama}</strong><br><span style="color:var(--muted);font-size:.75rem">${o.bookingCode || o.id}</span><br><span style="color:var(--muted);font-size:.75rem">${o.hp}</span>${o.promoDiscount?`<br><span class="promo-badge" style="font-size:.65rem;">PROMO -${o.promoDiscount}%</span>`:''}</td><td>${formatDateRange(o.tanggalMulai||o.tanggal,o.tanggalSelesai||o.tanggal)}<br><span style="color:var(--muted);font-size:.75rem">${o.jam} · ${o.jumlahHari || rentalDays(o.tanggalMulai||o.tanggal,o.tanggalSelesai||o.tanggal)} hari</span></td><td>${o.acara}</td><td>${o.papan}</td><td style="font-weight:600;color:var(--pink-deep)">${formatMoney(o.harga)}<br><span style="color:#0a3622;font-size:.75rem">Masuk: ${formatMoney(paidAmount(o))}</span><br><span style="color:var(--muted);font-size:.75rem">Sisa: ${formatMoney(remainingAmount(o))}</span></td><td><span class="badge badge-${String(o.status).toLowerCase().replace(' ','')}">${o.status}</span></td><td><div class="action-btns"><button class="action-btn confirm" onclick="viewOrder('${oid}')">👁</button>${actualProofBtn}${o.status!=='Batal'?`<button class="action-btn" style="background:#e8f5e9;color:#1b5e20;font-size:.7rem;" onclick="printNota('${oid}')">Nota</button>`:''}${o.status!=='Lunas'&&o.status!=='Batal'?`<button class="action-btn dp" onclick="setPaymentStatus('${oid}','DP')">DP</button>`:''}${o.status!=='Lunas'&&o.status!=='Batal'?`<button class="action-btn confirm" onclick="setPaymentStatus('${oid}','Lunas')">Lunas</button>`:''}${o.status!=='Batal'?`<button class="action-btn cancel" onclick="setStatus('${oid}','Batal')">Batal</button>`:''}<button class="action-btn delete" onclick="deleteOrder('${oid}')">🗑</button></div></td></tr>`;
   }).join('');
 }
 async function adjustUsageRange(tx,order,delta){
@@ -966,7 +1024,7 @@ function viewOrder(id){
   const promoHtml=o.promoDiscount?`<div class="detail-row"><span class="key">Promo</span><span class="val"><span class="promo-badge">🎁 ${o.promoLabel} -${o.promoDiscount}%</span></span></div>`:'';
   const proofHtml=o.proofUrl?`<div class="detail-row"><span class="key">Bukti Bayar</span><span class="val"><img src="${o.proofUrl}" class="proof-thumb" onclick="openProofModal(orders.find(x=>x.id==='${o.id}')?.proofUrl||'')" title="Klik untuk perbesar"><br><span style="font-size:.73rem;color:var(--muted);">Klik foto untuk perbesar</span></span></div>`:'<div class="detail-row"><span class="key">Bukti Bayar</span><span class="val" style="color:var(--muted);">Belum upload</span></div>';
   document.getElementById('modal-content').innerHTML=`<div class="detail-row"><span class="key">Kode Booking</span><span class="val">${o.bookingCode || o.id}</span></div><div class="detail-row"><span class="key">Nama</span><span class="val">${o.nama}</span></div><div class="detail-row"><span class="key">No. HP</span><span class="val">${o.hp}</span></div><div class="detail-row"><span class="key">Identitas</span><span class="val">${o.identitas}</span></div><div class="detail-row"><span class="key">Tanggal</span><span class="val">${formatDateRange(o.tanggalMulai||o.tanggal,o.tanggalSelesai||o.tanggal)} · ${o.jam}</span></div><div class="detail-row"><span class="key">Durasi</span><span class="val">${o.jumlahHari || rentalDays(o.tanggalMulai||o.tanggal,o.tanggalSelesai||o.tanggal)} hari</span></div><div class="detail-row"><span class="key">Lokasi</span><span class="val">${o.lokasi}</span></div><div class="detail-row"><span class="key">Warna Bunga</span><span class="val">${o.warna}</span></div><div class="detail-row"><span class="key">Acara</span><span class="val">${o.acara}</span></div><div class="detail-row"><span class="key">Jenis Papan</span><span class="val">${o.papan}</span></div><div class="detail-row"><span class="key">Harga</span><span class="val" style="color:var(--pink-deep);font-weight:700">${formatMoney(o.harga)}</span></div>${promoHtml}<div class="detail-row"><span class="key">Uang Masuk</span><span class="val">${formatMoney(paidAmount(o))}</span></div><div class="detail-row"><span class="key">Sisa Bayar</span><span class="val">${formatMoney(remainingAmount(o))}</span></div><div class="detail-row"><span class="key">Status</span><span class="val"><span class="badge badge-${String(o.status).toLowerCase()}">${o.status}</span></span></div>${proofHtml}<div class="detail-row"><span class="key">Ucapan</span><span class="val" style="white-space:pre-wrap">${o.ucapan}</span></div><div class="detail-row"><span class="key">Dipesan</span><span class="val">${createdLabel(o)}</span></div>`;
-  document.getElementById('modal-actions').innerHTML=`${o.status!=='Lunas'&&o.status!=='Batal'?`<button class="action-btn dp" onclick="setPaymentStatus('${o.id}','DP');closeModal()">Catat DP</button><button class="action-btn confirm" onclick="setPaymentStatus('${o.id}','Lunas');closeModal()">Tandai Lunas</button>`:''} ${o.status==='Lunas'?`<button class="action-btn" style="background:#e8f5e9;color:#1b5e20;padding:8px 16px;font-size:.82rem;font-weight:600;" onclick="closeModal();printNota('${o.id}')">🖨️ Cetak Nota Lunas</button>`:''}`;
+  document.getElementById('modal-actions').innerHTML=`${o.status!=='Lunas'&&o.status!=='Batal'?`<button class="action-btn dp" onclick="setPaymentStatus('${o.id}','DP');closeModal()">Catat DP</button><button class="action-btn confirm" onclick="setPaymentStatus('${o.id}','Lunas');closeModal()">Tandai Lunas</button>`:''} ${o.status!=='Batal'?`<button class="action-btn" style="background:#e8f5e9;color:#1b5e20;padding:8px 16px;font-size:.82rem;font-weight:600;" onclick="closeModal();printNota('${o.id}')">Cetak Nota</button>`:''}`;
   document.getElementById('detail-modal').classList.add('active');
 }
 function closeModal(){document.getElementById('detail-modal').classList.remove('active');}

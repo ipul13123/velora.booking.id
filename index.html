@@ -569,6 +569,293 @@
   .proof-thumb { max-width:120px; border-radius:8px; border:1.5px solid #e8d5e8; cursor:pointer; }
   .proof-thumb:hover { opacity:.85; }
 
+  /* ── NOTA ELEGANT ── */
+  .nota-overlay {
+    display:none;
+    position:fixed;
+    inset:0;
+    z-index:1200;
+    background:rgba(45,31,46,0.76);
+    backdrop-filter:blur(10px);
+    padding:24px;
+    overflow:auto;
+  }
+  .nota-overlay.active { display:block; }
+  .nota-shell {
+    width:min(860px,100%);
+    margin:0 auto;
+  }
+  .nota-sheet {
+    background:#fffaf7;
+    color:#2d1f2e;
+    border-radius:18px;
+    overflow:hidden;
+    box-shadow:0 28px 80px rgba(23,10,25,0.34);
+    border:1px solid rgba(201,169,110,0.36);
+  }
+  .nota-hero {
+    position:relative;
+    background:linear-gradient(135deg,#2d1f2e 0%,#512655 52%,#8d4965 100%);
+    color:white;
+    padding:34px 38px 30px;
+    overflow:hidden;
+  }
+  .nota-hero::before {
+    content:'';
+    position:absolute;
+    inset:18px;
+    border:1px solid rgba(232,213,176,0.42);
+    border-radius:16px;
+    pointer-events:none;
+  }
+  .nota-hero::after {
+    content:'VELORA';
+    position:absolute;
+    right:-22px;
+    bottom:-26px;
+    font-family:'Playfair Display',serif;
+    font-size:6rem;
+    color:rgba(255,255,255,0.06);
+    letter-spacing:.08em;
+    font-weight:700;
+  }
+  .nota-topline {
+    position:relative;
+    display:flex;
+    justify-content:space-between;
+    gap:18px;
+    align-items:flex-start;
+    z-index:1;
+  }
+  .nota-brandmark {
+    display:flex;
+    gap:14px;
+    align-items:center;
+  }
+  .nota-monogram {
+    width:58px;
+    height:58px;
+    border-radius:50%;
+    border:1px solid rgba(232,213,176,0.72);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-family:'Playfair Display',serif;
+    font-size:1.9rem;
+    color:var(--gold-light);
+    background:rgba(255,255,255,0.08);
+  }
+  .nota-brand-name {
+    font-family:'Playfair Display',serif;
+    font-size:2rem;
+    color:var(--gold-light);
+    line-height:1;
+  }
+  .nota-brand-sub {
+    margin-top:7px;
+    font-size:.76rem;
+    color:rgba(255,255,255,0.72);
+    text-transform:uppercase;
+    letter-spacing:.12em;
+  }
+  .nota-status-pill {
+    border:1px solid rgba(232,213,176,0.68);
+    color:var(--gold-light);
+    border-radius:999px;
+    padding:9px 16px;
+    font-size:.76rem;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    background:rgba(255,255,255,0.08);
+    white-space:nowrap;
+  }
+  .nota-title-row {
+    position:relative;
+    z-index:1;
+    display:grid;
+    grid-template-columns:1fr auto;
+    gap:24px;
+    align-items:end;
+    margin-top:34px;
+  }
+  .nota-title {
+    font-family:'Playfair Display',serif;
+    font-size:2.45rem;
+    line-height:1;
+    color:white;
+  }
+  .nota-code-box {
+    text-align:right;
+    color:rgba(255,255,255,0.7);
+    font-size:.78rem;
+  }
+  .nota-code-box strong {
+    display:block;
+    color:white;
+    margin-top:6px;
+    font-size:1.08rem;
+    letter-spacing:.06em;
+  }
+  .nota-content {
+    padding:30px 38px 34px;
+  }
+  .nota-grid {
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:18px;
+  }
+  .nota-panel {
+    background:white;
+    border:1px solid #f0dce8;
+    border-radius:14px;
+    padding:18px;
+  }
+  .nota-panel h4 {
+    font-family:'Playfair Display',serif;
+    font-size:1rem;
+    color:var(--dark);
+    margin-bottom:12px;
+  }
+  .nota-line {
+    display:grid;
+    grid-template-columns:120px 1fr;
+    gap:10px;
+    padding:8px 0;
+    border-bottom:1px dashed #efddeb;
+    font-size:.84rem;
+  }
+  .nota-line:last-child { border-bottom:none; }
+  .nota-key { color:var(--muted); }
+  .nota-val { color:var(--dark); font-weight:600; text-align:right; overflow-wrap:anywhere; }
+  .nota-message {
+    margin-top:18px;
+    background:linear-gradient(135deg,#fff5f8,#fff);
+    border:1px solid #f0dce8;
+    border-radius:14px;
+    padding:18px;
+  }
+  .nota-message h4 {
+    font-family:'Playfair Display',serif;
+    font-size:1rem;
+    margin-bottom:8px;
+  }
+  .nota-message-text {
+    min-height:54px;
+    color:var(--text);
+    white-space:pre-wrap;
+    font-size:.9rem;
+    line-height:1.55;
+  }
+  .nota-total-panel {
+    margin-top:18px;
+    display:grid;
+    grid-template-columns:1fr minmax(240px,.72fr);
+    gap:18px;
+    align-items:stretch;
+  }
+  .nota-payment-summary {
+    background:white;
+    border:1px solid #f0dce8;
+    border-radius:14px;
+    padding:18px;
+  }
+  .nota-grand-total {
+    background:linear-gradient(135deg,#2d1f2e,#5a2060);
+    color:white;
+    border-radius:14px;
+    padding:20px;
+    display:flex;
+    flex-direction:column;
+    justify-content:space-between;
+    min-height:150px;
+  }
+  .nota-grand-total .total-label {
+    color:rgba(255,255,255,0.68);
+    font-size:.78rem;
+    text-transform:uppercase;
+    letter-spacing:.12em;
+  }
+  .nota-grand-total .total-amount {
+    font-family:'Playfair Display',serif;
+    font-size:2rem;
+    color:var(--gold-light);
+    margin-top:10px;
+  }
+  .nota-grand-total .total-status {
+    margin-top:14px;
+    align-self:flex-start;
+    background:rgba(255,255,255,0.12);
+    border:1px solid rgba(232,213,176,0.44);
+    border-radius:999px;
+    padding:7px 12px;
+    font-size:.75rem;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+  }
+  .nota-footer-band {
+    display:flex;
+    justify-content:space-between;
+    gap:18px;
+    align-items:flex-end;
+    margin-top:24px;
+    padding-top:18px;
+    border-top:1px solid #f0dce8;
+    color:var(--muted);
+    font-size:.78rem;
+    line-height:1.55;
+  }
+  .nota-signature {
+    text-align:right;
+    color:var(--dark);
+  }
+  .nota-signature strong {
+    display:block;
+    font-family:'Playfair Display',serif;
+    font-size:1.1rem;
+    margin-top:6px;
+  }
+  .nota-actions {
+    display:flex;
+    justify-content:center;
+    gap:10px;
+    flex-wrap:wrap;
+    margin:18px auto 0;
+  }
+  .nota-btn {
+    border:none;
+    border-radius:999px;
+    padding:11px 18px;
+    cursor:pointer;
+    font-family:'DM Sans',sans-serif;
+    font-weight:700;
+    font-size:.85rem;
+  }
+  .nota-btn.close { background:white; color:var(--dark); }
+  .nota-btn.print { background:linear-gradient(135deg,var(--pink-deep),var(--gold)); color:white; }
+
+  @media print {
+    body * { visibility:hidden !important; }
+    #nota-overlay, #nota-overlay * { visibility:visible !important; }
+    #nota-overlay {
+      display:block !important;
+      position:static !important;
+      inset:auto !important;
+      background:white !important;
+      padding:0 !important;
+      overflow:visible !important;
+      backdrop-filter:none !important;
+    }
+    .nota-shell { width:100% !important; margin:0 !important; }
+    .nota-sheet {
+      box-shadow:none !important;
+      border-radius:0 !important;
+      border:none !important;
+      width:100% !important;
+    }
+    .nota-actions { display:none !important; }
+    @page { size:A4; margin:10mm; }
+  }
+
   /* ── DATE FILTER ── */
   .date-filter-bar {
     background:var(--white); border-radius:14px; padding:14px 18px;
@@ -655,6 +942,19 @@
     }
     .admin-dashboard-grid { grid-template-columns:1fr; }
     .followup-actions { justify-content:flex-start; }
+    .nota-overlay { padding:12px; }
+    .nota-hero, .nota-content { padding:24px 18px; }
+    .nota-topline, .nota-title-row, .nota-footer-band {
+      grid-template-columns:1fr;
+      flex-direction:column;
+      align-items:flex-start;
+      text-align:left;
+    }
+    .nota-code-box, .nota-signature { text-align:left; }
+    .nota-title { font-size:2rem; }
+    .nota-grid, .nota-total-panel { grid-template-columns:1fr; }
+    .nota-line { grid-template-columns:1fr; gap:3px; }
+    .nota-val { text-align:left; }
     .gallery-admin-row, .board-admin-row { grid-template-columns:1fr !important; }
     .filter-row, .action-btns { width:100%; }
     .filter-row .btn, .filter-select { flex:1 1 100%; }
@@ -1244,6 +1544,13 @@
 <div class="img-modal-overlay" id="proof-modal" onclick="this.classList.remove('active')">
   <button class="img-modal-close" onclick="document.getElementById('proof-modal').classList.remove('active')">×</button>
   <img id="proof-modal-img" src="" alt="Bukti Pembayaran">
+</div>
+
+<!-- Nota / Invoice Modal -->
+<div class="nota-overlay" id="nota-overlay">
+  <div class="nota-shell">
+    <div class="nota-sheet" id="nota-sheet"></div>
+  </div>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
