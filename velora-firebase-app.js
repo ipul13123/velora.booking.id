@@ -447,6 +447,28 @@ function openWhatsAppAdmin(message){
   closeMobileMenu();
   window.open(getWhatsAppLink(message || siteContent.waDefaultMessage || DEFAULT_CONTENT.waDefaultMessage), '_blank');
 }
+function customerWhatsAppNumber(order){
+  let phone=String(order?.hp||'').replace(/\D/g,'');
+  if(phone.startsWith('0')) phone='62'+phone.slice(1);
+  if(phone.startsWith('8')) phone='62'+phone;
+  return phone;
+}
+function buildCustomerFollowUpMessage(order){
+  const paid=paidAmount(order), remain=remainingAmount(order);
+  if(paid<=0){
+    return `Halo ${order.nama}, ini admin Velora.id. Kami ingin konfirmasi pesanan ${order.bookingCode || order.id} untuk ${formatDateRange(order.tanggalMulai||order.tanggal, order.tanggalSelesai||order.tanggal)}. Jika sudah transfer DP, boleh kirim bukti pembayarannya ya. Terima kasih.`;
+  }
+  if(remain>0){
+    return `Halo ${order.nama}, ini admin Velora.id. Kami ingin mengingatkan sisa pembayaran pesanan ${order.bookingCode || order.id} sebesar ${formatMoney(remain)}. Terima kasih.`;
+  }
+  return `Halo ${order.nama}, ini admin Velora.id. Kami ingin konfirmasi detail pesanan ${order.bookingCode || order.id} untuk ${formatDateRange(order.tanggalMulai||order.tanggal, order.tanggalSelesai||order.tanggal)}.`;
+}
+function chatCustomer(id){
+  const order=orders.find(o=>o.id===id);
+  const phone=customerWhatsAppNumber(order);
+  if(!order||!phone){ toast('Nomor pelanggan belum tersedia.'); return; }
+  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(buildCustomerFollowUpMessage(order))}`, '_blank');
+}
 function buildOrderWhatsAppMessage(order){
   const days = order.jumlahHari || rentalDays(order.tanggalMulai||order.tanggal, order.tanggalSelesai||order.tanggal);
   const tanggal = formatDateRange(order.tanggalMulai||order.tanggal, order.tanggalSelesai||order.tanggal);
@@ -806,9 +828,88 @@ function closeNota(){
   document.getElementById('nota-overlay').classList.remove('active');
 }
 
+function isOrderActive(order){ return order && order.status!=='Batal'; }
+function orderStartDate(order){ return order?.tanggalMulai || order?.tanggal || ''; }
+function orderEndDate(order){ return order?.tanggalSelesai || order?.tanggal || orderStartDate(order); }
+function orderCoversDate(order,dateStr){
+  const start=orderStartDate(order), end=orderEndDate(order);
+  return !!dateStr && !!start && dateStr>=start && dateStr<=end;
+}
+function orderIsUpcoming(order,fromDate=toDateStr(today)){
+  return isOrderActive(order) && orderEndDate(order)>=fromDate;
+}
+function renderAdminDashboard(){
+  const cards=document.getElementById('admin-dashboard-cards'), list=document.getElementById('admin-followup-list'), stockBox=document.getElementById('admin-stock-today');
+  if(!cards||!list||!stockBox) return;
+
+  const todayStr=toDateStr(today);
+  const tomorrowDate=new Date(today.getFullYear(),today.getMonth(),today.getDate()+1);
+  const tomorrowStr=toDateStr(tomorrowDate);
+  const monthPrefix=todayStr.slice(0,7);
+  const activeOrders=orders.filter(isOrderActive);
+  const todayOrders=activeOrders.filter(o=>orderCoversDate(o,todayStr));
+  const tomorrowOrders=activeOrders.filter(o=>orderCoversDate(o,tomorrowStr));
+  const unpaid=activeOrders.filter(o=>paidAmount(o)<=0 && o.status!=='Lunas');
+  const partial=activeOrders.filter(o=>paidAmount(o)>0 && remainingAmount(o)>0 && o.status!=='Lunas');
+  const proofNeedCheck=activeOrders.filter(o=>o.proofUrl && paidAmount(o)<=0);
+  const monthPaid=activeOrders
+    .filter(o=>(orderStartDate(o)||'').slice(0,7)===monthPrefix)
+    .reduce((sum,o)=>sum+paidAmount(o),0);
+  const nextOrders=activeOrders
+    .filter(o=>orderIsUpcoming(o,todayStr))
+    .sort((a,b)=>String(orderStartDate(a)).localeCompare(String(orderStartDate(b))) || orderMillis(a)-orderMillis(b));
+  const nearest=nextOrders[0];
+
+  cards.innerHTML=[
+    {icon:'📅',value:todayOrders.length,label:'Pesanan Hari Ini',note:todayOrders.length?`${todayOrders.length} pesanan berjalan hari ini`:'Tidak ada pesanan hari ini'},
+    {icon:'⏰',value:tomorrowOrders.length,label:'Pesanan Besok',note:tomorrowOrders.length?`${tomorrowOrders.length} perlu disiapkan`:'Belum ada jadwal besok'},
+    {icon:'💳',value:unpaid.length,label:'Belum DP',note:unpaid.length?'Perlu follow-up pembayaran':'Semua aman'},
+    {icon:'💰',value:formatMoney(monthPaid),label:'Uang Masuk Bulan Ini',note:`Berdasarkan tanggal sewa ${today.toLocaleDateString('id-ID',{month:'long',year:'numeric'})}`},
+    {icon:'🗓️',value:nearest?formatDate(orderStartDate(nearest)).split(' ').slice(0,2).join(' '):'-',label:'Jadwal Terdekat',note:nearest?`${nearest.nama} · ${nearest.papan}`:'Belum ada pesanan aktif'}
+  ].map(c=>`<div class="admin-metric-card"><div><div class="metric-top"><div class="metric-icon">${c.icon}</div><div class="metric-value">${c.value}</div></div><div class="metric-label">${c.label}</div></div><div class="metric-note">${c.note}</div></div>`).join('');
+
+  const followups=[
+    ...proofNeedCheck.map(o=>({order:o,reason:'Bukti bayar masuk, perlu dicek'})),
+    ...unpaid.map(o=>({order:o,reason:'Belum ada DP tercatat'})),
+    ...partial.map(o=>({order:o,reason:`Sisa bayar ${formatMoney(remainingAmount(o))}`})),
+    ...tomorrowOrders.map(o=>({order:o,reason:'Pesanan besok, cek kesiapan'}))
+  ];
+  const seen=new Set();
+  const uniqueFollowups=followups.filter(item=>{
+    if(seen.has(item.order.id)) return false;
+    seen.add(item.order.id);
+    return true;
+  }).sort((a,b)=>String(orderStartDate(a.order)).localeCompare(String(orderStartDate(b.order))) || orderMillis(b.order)-orderMillis(a.order)).slice(0,6);
+
+  list.innerHTML=uniqueFollowups.length ? uniqueFollowups.map(({order,reason})=>`
+    <div class="followup-item">
+      <div>
+        <div class="followup-title">${order.nama} · ${order.papan}</div>
+        <div class="followup-meta">${formatDateRange(orderStartDate(order),orderEndDate(order))} · ${order.jam || '-'}<br>${order.bookingCode || order.id} · ${formatMoney(order.harga)}</div>
+        <div class="followup-reason">${reason}</div>
+      </div>
+      <div class="followup-actions">
+        <button class="action-btn confirm" onclick="viewOrder('${order.id}')">Detail</button>
+        ${order.status!=='Lunas'?`<button class="action-btn dp" onclick="setPaymentStatus('${order.id}','DP')">DP</button>`:''}
+        ${order.status!=='Lunas'?`<button class="action-btn confirm" onclick="setPaymentStatus('${order.id}','Lunas')">Lunas</button>`:''}
+        <button class="action-btn wa" onclick="chatCustomer('${order.id}')">WA</button>
+      </div>
+    </div>
+  `).join('') : '<div class="empty-state">Tidak ada pekerjaan mendesak. Semua pesanan terlihat aman.</div>';
+
+  const todayStock=getStockOnDate(todayStr);
+  stockBox.innerHTML=papanList().length ? papanList().map(p=>{
+    const total=getStockBaseOnDate(todayStr)[p.key] || 0;
+    const left=todayStock[p.key] || 0;
+    const pct=total ? Math.max(0,Math.min(100,left/total*100)) : 0;
+    return `<div class="stock-mini-item"><div><div class="stock-mini-name">${p.icon} ${p.label}</div><div class="stock-mini-bar"><div class="stock-mini-fill" style="width:${pct}%"></div></div></div><div class="stock-mini-count">${left}/${total}</div></div>`;
+  }).join('') : '<div class="empty-state">Belum ada jenis papan aktif.</div>';
+}
+
 function renderAdmin(){
   const total=orders.length,pending=orders.filter(o=>o.status==='Pending').length,dp=orders.filter(o=>o.status==='DP').length,lunas=orders.filter(o=>o.status==='Lunas').length,revenue=orders.filter(o=>o.status!=='Batal').reduce((a,o)=>a+(Number(o.harga)||0),0),paid=orders.filter(o=>o.status!=='Batal').reduce((a,o)=>a+paidAmount(o),0);
   document.getElementById('stats-row').innerHTML=`<div class="stat-card"><div class="num">${total}</div><div class="lbl">Total Pesanan</div></div><div class="stat-card"><div class="num" style="color:#856404">${pending}</div><div class="lbl">Pending</div></div><div class="stat-card"><div class="num" style="color:#084298">${dp}</div><div class="lbl">Sudah DP</div></div><div class="stat-card"><div class="num" style="color:#0a3622">${lunas}</div><div class="lbl">Lunas</div></div><div class="stat-card"><div class="num" style="font-size:1.2rem;color:var(--pink-deep)">${formatMoney(paid)}</div><div class="lbl">Uang Masuk</div></div><div class="stat-card"><div class="num" style="font-size:1.2rem;color:var(--pink-deep)">${formatMoney(revenue)}</div><div class="lbl">Total Tagihan</div></div>`;
+  renderAdminDashboard();
   renderPromoAdmin(); renderBlockedList(); renderStockInputs(); renderDailyStockInputs(); renderPriceInputs(); renderContentInputs(); renderTable();
 }
 function renderTable(){
