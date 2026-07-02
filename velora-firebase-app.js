@@ -59,7 +59,11 @@ const DEFAULT_CONTENT = {
   successDesc: 'Terima kasih telah memesan di <strong>Velora.id</strong>. Pesananmu sudah kami catat. Jangan lupa kirim bukti DP/Pelunasan ke admin ya!',
   paymentNote: '<strong>NB:</strong> Order minimal harus DP 50% atau bisa lunas 100% dari harga sewa. Jika pesan tapi tidak melakukan minimal DP dianggap tidak pesan.<br>Kirim bukti DP/Pelunasan ke admin Velora.id.',
   waButtonText: 'Hubungi Admin',
-  waDefaultMessage: 'Halo Admin Velora, saya ingin bertanya tentang sewa papan ucapan.'
+  waDefaultMessage: 'Halo Admin Velora, saya ingin bertanya tentang sewa papan ucapan.',
+  // ── Status buka/tutup toko ──
+  siteClosed: false,
+  closedTitle: 'Velora.id Sedang Tutup Sementara',
+  closedMessage: 'Mohon maaf, saat ini kami belum bisa menerima pesanan baru. Kami akan kembali melayani sewa papan ucapan segera. Terima kasih atas pengertiannya 🌸'
 };
 let siteContent = JSON.parse(JSON.stringify(DEFAULT_CONTENT));
 
@@ -572,6 +576,23 @@ function renderContent(){
         <div class="caption">${item.caption || ''}</div>
       </div>`).join('');
   }
+
+  // Status tutup sementara
+  const isClosed=!!siteContent.siteClosed;
+  const banner=document.getElementById('closed-banner');
+  if(banner){
+    banner.classList.toggle('active', isClosed);
+    const bt=document.getElementById('closed-banner-title');
+    if(bt) bt.textContent=siteContent.closedTitle || DEFAULT_CONTENT.closedTitle;
+    const bm=document.getElementById('closed-banner-message');
+    if(bm) bm.textContent=siteContent.closedMessage || DEFAULT_CONTENT.closedMessage;
+  }
+  const submitBtn=document.getElementById('submit-order-btn');
+  if(submitBtn){
+    if(!submitBtn.getAttribute('data-default-label')) submitBtn.setAttribute('data-default-label', submitBtn.innerHTML);
+    submitBtn.disabled=isClosed;
+    submitBtn.innerHTML=isClosed ? '🌙 Pemesanan Ditutup Sementara' : submitBtn.getAttribute('data-default-label');
+  }
 }
 function renderContentInputs(){
   const wa=document.getElementById('content-whatsapp');
@@ -591,6 +612,12 @@ function renderContentInputs(){
   document.getElementById('content-warna-gantung').value=(siteContent.warnaOptionsGantung || []).join(', ');
   document.getElementById('content-gallery-subtitle').value=siteContent.gallerySubtitle || '';
   document.getElementById('content-gallery-note').value=(siteContent.galleryNote || '').replace(/<strong>/g,'').replace(/<\/strong>/g,'');
+  const closedChk=document.getElementById('content-site-closed');
+  if(closedChk) closedChk.checked=!!siteContent.siteClosed;
+  const closedTitleInput=document.getElementById('content-closed-title');
+  if(closedTitleInput) closedTitleInput.value=siteContent.closedTitle || '';
+  const closedMsgInput=document.getElementById('content-closed-message');
+  if(closedMsgInput) closedMsgInput.value=siteContent.closedMessage || '';
   renderFeaturesAdminList();
   renderBoardTypesAdminList();
   renderGalleryAdminList();
@@ -702,6 +729,9 @@ async function saveContent(){
     warnaOptionsGantung:warnaOptionsGantung.length ? warnaOptionsGantung : DEFAULT_CONTENT.warnaOptionsGantung,
     gallerySubtitle:document.getElementById('content-gallery-subtitle').value.trim(),
     galleryNote:document.getElementById('content-gallery-note').value.trim(),
+    siteClosed:document.getElementById('content-site-closed')?.checked || false,
+    closedTitle:document.getElementById('content-closed-title')?.value.trim() || DEFAULT_CONTENT.closedTitle,
+    closedMessage:document.getElementById('content-closed-message')?.value.trim() || DEFAULT_CONTENT.closedMessage,
     features,
     boardTypes,
     gallery
@@ -715,6 +745,7 @@ async function saveContent(){
   toast('Konten website berhasil disimpan!');
 }
 async function submitOrder(){
+  if(siteContent.siteClosed){toast('Mohon maaf, pemesanan sedang ditutup sementara.');return;}
   if(!firebaseReady()){toast('Isi konfigurasi Firebase dulu.');return;}
   const fields=[['f-nama','Nama Penyewa'],['f-hp','No. HP'],['f-id','Identitas'],['f-tgl-mulai','Tanggal Mulai Sewa'],['f-tgl-selesai','Tanggal Selesai Sewa'],['f-jam','Jam'],['f-lokasi','Lokasi'],['f-warna','Warna Bunga'],['f-acara','Kebutuhan Acara'],['f-papan','Jenis Papan'],['f-ucapan','Ucapan']];
   for(const [id,lbl] of fields){ const el=document.getElementById(id); if(!el||!el.value.trim()){toast('Mohon isi: '+lbl); if(el)el.focus(); return;} }

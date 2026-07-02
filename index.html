@@ -117,6 +117,35 @@
   .nav-btn.primary:hover { transform:translateY(-1px); box-shadow:0 4px 16px rgba(232,127,160,0.4); }
   .admin-badge { background: var(--gold); color:var(--dark); padding:3px 10px; border-radius:50px; font-size:.75rem; font-weight:700; }
 
+  /* ── CLOSED BANNER ── */
+  .closed-banner {
+    display:none;
+    background: linear-gradient(135deg, #5a2060 0%, #2d1f2e 100%);
+    border-bottom: 1px solid rgba(201,169,110,0.4);
+    padding: 14px 20px;
+  }
+  .closed-banner.active { display:block; }
+  .closed-banner-inner {
+    max-width:960px; margin:0 auto;
+    display:flex; align-items:center; gap:14px;
+  }
+  .closed-banner-icon { font-size:1.6rem; flex:0 0 auto; }
+  .closed-banner-inner strong {
+    display:block;
+    font-family:'Playfair Display',serif;
+    color: var(--gold-light);
+    font-size:1rem;
+    margin-bottom:2px;
+  }
+  .closed-banner-inner p {
+    color: rgba(255,255,255,0.78);
+    font-size:.85rem;
+    line-height:1.4;
+  }
+  @media(max-width:640px){
+    .closed-banner-inner { align-items:flex-start; }
+  }
+
   /* ── HERO ── */
   .hero {
     background: linear-gradient(160deg, #2d1f2e 0%, #5a2060 50%, #2d1f2e 100%);
@@ -834,8 +863,13 @@
   .nota-btn.print { background:linear-gradient(135deg,var(--pink-deep),var(--gold)); color:white; }
 
   @media print {
-    body * { visibility:hidden !important; }
-    #nota-overlay, #nota-overlay * { visibility:visible !important; }
+    html, body {
+      width:auto !important; height:auto !important; overflow:visible !important;
+      -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important;
+    }
+    /* Hide every other top-level element instead of just making it invisible,
+       so it doesn't keep reserving space in the printed layout. */
+    body > *:not(#nota-overlay) { display:none !important; }
     #nota-overlay {
       display:block !important;
       position:static !important;
@@ -845,13 +879,16 @@
       overflow:visible !important;
       backdrop-filter:none !important;
     }
+    #nota-overlay * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; color-adjust:exact !important; }
     .nota-shell { width:100% !important; margin:0 !important; }
     .nota-sheet {
       box-shadow:none !important;
       border-radius:0 !important;
       border:none !important;
       width:100% !important;
+      break-inside:avoid;
     }
+    .nota-grid, .nota-total-panel, .nota-message, .nota-footer-band { break-inside:avoid; }
     .nota-actions { display:none !important; }
     @page { size:A4; margin:10mm; }
   }
@@ -1028,6 +1065,16 @@
     <span class="admin-badge" id="admin-badge" style="display:none">ADMIN</span>
   </div>
 </nav>
+
+<div id="closed-banner" class="closed-banner">
+  <div class="closed-banner-inner">
+    <span class="closed-banner-icon">🌙</span>
+    <div>
+      <strong id="closed-banner-title">Velora.id Sedang Tutup Sementara</strong>
+      <p id="closed-banner-message">Mohon maaf, saat ini kami belum bisa menerima pesanan baru.</p>
+    </div>
+  </div>
+</div>
 
 <!-- ═══════════════ HOME ═══════════════ -->
 <div id="page-home" class="page active">
@@ -1380,6 +1427,26 @@
       <p style="font-size:.83rem;color:var(--muted);margin-bottom:16px;">Ubah harga sewa per acara dan jenis papan. Harga di halaman pelanggan akan ikut berubah setelah disimpan.</p>
       <div class="price-admin-grid" id="price-admin-grid"></div>
       <button class="btn btn-pink" style="margin-top:16px;font-size:.85rem;" onclick="savePrices()">💾 Simpan Harga</button>
+    </div>
+
+    <div class="stock-mgr" style="border:1.5px solid #e8c9d5;">
+      <h3>🌙 Status Toko (Buka / Tutup Sementara)</h3>
+      <p style="font-size:.83rem;color:var(--muted);margin-bottom:16px;">Aktifkan saat toko sedang tidak menerima pesanan. Banner akan otomatis muncul di semua halaman untuk pengunjung, dan form pemesanan akan dinonaktifkan.</p>
+      <div class="content-admin-grid">
+        <div class="content-admin-item full" style="display:flex;align-items:center;gap:10px;">
+          <input type="checkbox" id="content-site-closed" style="width:18px;height:18px;">
+          <label for="content-site-closed" style="margin:0;">Tutup Sementara (nonaktifkan pemesanan)</label>
+        </div>
+        <div class="content-admin-item full">
+          <label>Judul Banner</label>
+          <input id="content-closed-title" placeholder="Velora.id Sedang Tutup Sementara">
+        </div>
+        <div class="content-admin-item full">
+          <label>Pesan untuk Pelanggan</label>
+          <textarea id="content-closed-message" rows="3" placeholder="Mohon maaf, saat ini kami belum bisa menerima pesanan baru..."></textarea>
+        </div>
+      </div>
+      <button class="btn btn-pink" style="margin-top:16px;font-size:.85rem;" onclick="saveContent()">💾 Simpan Status Toko</button>
     </div>
 
     <div class="stock-mgr">
