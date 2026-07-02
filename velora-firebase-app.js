@@ -870,10 +870,7 @@ function printNota(id){
         </div>
       </div>
 
-      <div class="nota-message">
-        <h4>Ucapan / Tulisan di Papan</h4>
-        <div class="nota-message-text">${esc(o.ucapan || '-')}</div>
-      </div>
+      
 
       <div class="nota-total-panel">
         <div class="nota-payment-summary">
