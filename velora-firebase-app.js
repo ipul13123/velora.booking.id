@@ -1,4 +1,4 @@
-﻿const firebaseConfig = {
+const firebaseConfig = {
   apiKey: "AIzaSyCMdmZYh6--CVR9yuHWCmbzWPXtyAAHduk",
   authDomain: "velora-booking-59896.firebaseapp.com",
   projectId: "velora-booking-59896",
@@ -59,11 +59,7 @@ const DEFAULT_CONTENT = {
   successDesc: 'Terima kasih telah memesan di <strong>Velora.id</strong>. Pesananmu sudah kami catat. Jangan lupa kirim bukti DP/Pelunasan ke admin ya!',
   paymentNote: '<strong>NB:</strong> Order minimal harus DP 50% atau bisa lunas 100% dari harga sewa. Jika pesan tapi tidak melakukan minimal DP dianggap tidak pesan.<br>Kirim bukti DP/Pelunasan ke admin Velora.id.',
   waButtonText: 'Hubungi Admin',
-  waDefaultMessage: 'Halo Admin Velora, saya ingin bertanya tentang sewa papan ucapan.',
-  // ── Status buka/tutup toko ──
-  siteClosed: false,
-  closedTitle: 'Velora.id Sedang Tutup Sementara',
-  closedMessage: 'Mohon maaf, saat ini kami belum bisa menerima pesanan baru. Kami akan kembali melayani sewa papan ucapan segera. Terima kasih atas pengertiannya 🌸'
+  waDefaultMessage: 'Halo Admin Velora, saya ingin bertanya tentang sewa papan ucapan.'
 };
 let siteContent = JSON.parse(JSON.stringify(DEFAULT_CONTENT));
 
@@ -492,7 +488,6 @@ function buildOrderWhatsAppMessage(order){
 *DATA PENYEWA*
 - Nama      : ${order.nama}
 - No. HP    : ${order.hp}
-- Identitas : ${order.identitas || '-'}
 
 *DETAIL SEWA*
 - Tanggal   : ${tanggal}
@@ -576,23 +571,6 @@ function renderContent(){
         <div class="caption">${item.caption || ''}</div>
       </div>`).join('');
   }
-
-  // Status tutup sementara
-  const isClosed=!!siteContent.siteClosed;
-  const banner=document.getElementById('closed-banner');
-  if(banner){
-    banner.classList.toggle('active', isClosed);
-    const bt=document.getElementById('closed-banner-title');
-    if(bt) bt.textContent=siteContent.closedTitle || DEFAULT_CONTENT.closedTitle;
-    const bm=document.getElementById('closed-banner-message');
-    if(bm) bm.textContent=siteContent.closedMessage || DEFAULT_CONTENT.closedMessage;
-  }
-  const submitBtn=document.getElementById('submit-order-btn');
-  if(submitBtn){
-    if(!submitBtn.getAttribute('data-default-label')) submitBtn.setAttribute('data-default-label', submitBtn.innerHTML);
-    submitBtn.disabled=isClosed;
-    submitBtn.innerHTML=isClosed ? '🌙 Pemesanan Ditutup Sementara' : submitBtn.getAttribute('data-default-label');
-  }
 }
 function renderContentInputs(){
   const wa=document.getElementById('content-whatsapp');
@@ -612,12 +590,6 @@ function renderContentInputs(){
   document.getElementById('content-warna-gantung').value=(siteContent.warnaOptionsGantung || []).join(', ');
   document.getElementById('content-gallery-subtitle').value=siteContent.gallerySubtitle || '';
   document.getElementById('content-gallery-note').value=(siteContent.galleryNote || '').replace(/<strong>/g,'').replace(/<\/strong>/g,'');
-  const closedChk=document.getElementById('content-site-closed');
-  if(closedChk) closedChk.checked=!!siteContent.siteClosed;
-  const closedTitleInput=document.getElementById('content-closed-title');
-  if(closedTitleInput) closedTitleInput.value=siteContent.closedTitle || '';
-  const closedMsgInput=document.getElementById('content-closed-message');
-  if(closedMsgInput) closedMsgInput.value=siteContent.closedMessage || '';
   renderFeaturesAdminList();
   renderBoardTypesAdminList();
   renderGalleryAdminList();
@@ -729,9 +701,6 @@ async function saveContent(){
     warnaOptionsGantung:warnaOptionsGantung.length ? warnaOptionsGantung : DEFAULT_CONTENT.warnaOptionsGantung,
     gallerySubtitle:document.getElementById('content-gallery-subtitle').value.trim(),
     galleryNote:document.getElementById('content-gallery-note').value.trim(),
-    siteClosed:document.getElementById('content-site-closed')?.checked || false,
-    closedTitle:document.getElementById('content-closed-title')?.value.trim() || DEFAULT_CONTENT.closedTitle,
-    closedMessage:document.getElementById('content-closed-message')?.value.trim() || DEFAULT_CONTENT.closedMessage,
     features,
     boardTypes,
     gallery
@@ -745,9 +714,8 @@ async function saveContent(){
   toast('Konten website berhasil disimpan!');
 }
 async function submitOrder(){
-  if(siteContent.siteClosed){toast('Mohon maaf, pemesanan sedang ditutup sementara.');return;}
   if(!firebaseReady()){toast('Isi konfigurasi Firebase dulu.');return;}
-  const fields=[['f-nama','Nama Penyewa'],['f-hp','No. HP'],['f-id','Identitas'],['f-tgl-mulai','Tanggal Mulai Sewa'],['f-tgl-selesai','Tanggal Selesai Sewa'],['f-jam','Jam'],['f-lokasi','Lokasi'],['f-warna','Warna Bunga'],['f-acara','Kebutuhan Acara'],['f-papan','Jenis Papan'],['f-ucapan','Ucapan']];
+  const fields=[['f-nama','Nama Penyewa'],['f-hp','No. HP'],['f-lokasi','Lokasi'],['f-acara','Kebutuhan Acara'],['f-papan','Jenis Papan'],['f-warna','Warna Bunga'],['f-tgl-mulai','Tanggal Mulai Sewa'],['f-tgl-selesai','Tanggal Selesai Sewa'],['f-jam','Jam'],['f-ucapan','Ucapan']];
   for(const [id,lbl] of fields){ const el=document.getElementById(id); if(!el||!el.value.trim()){toast('Mohon isi: '+lbl); if(el)el.focus(); return;} }
   const tanggalMulai=document.getElementById('f-tgl-mulai').value, tanggalSelesai=document.getElementById('f-tgl-selesai').value, papan=document.getElementById('f-papan').value, acara=document.getElementById('f-acara').value, warna=document.getElementById('f-warna').value;
   const hargaSatuanBase=priceMap[acara]?.[papan]||0;
@@ -758,7 +726,7 @@ async function submitOrder(){
   if(papan === 'Papan Gantung' && !['Pink','Merah'].includes(warna)){ toast('Papan Gantung hanya tersedia bunga Pink dan Merah.'); return; }
   const availability=getAvailabilityCheck(tanggalMulai,tanggalSelesai,papan);
   if(availability.ready===false){ toast(availability.message); updateAvailability(); return; }
-  const order={nama:document.getElementById('f-nama').value.trim(),hp:document.getElementById('f-hp').value.trim(),identitas:document.getElementById('f-id').value,tanggal:tanggalMulai,tanggalMulai,tanggalSelesai,tanggalList,jam:document.getElementById('f-jam').value,durasi:`${jumlahHari} Hari`,jumlahHari,lokasi:document.getElementById('f-lokasi').value.trim(),warna:document.getElementById('f-warna').value,acara,papan,hargaSatuanBase,hargaSatuan,harga,promoLabel:promo?promo.label:'',promoDiscount:promo?promo.discount:0,paidAmount:0,paymentStatus:'Belum Bayar',ucapan:document.getElementById('f-ucapan').value.trim(),status:'Pending',proofUrl:uploadedProofUrl||'',createdAt:firebase.firestore.FieldValue.serverTimestamp(),createdAtText:new Date().toISOString()};
+  const order={nama:document.getElementById('f-nama').value.trim(),hp:document.getElementById('f-hp').value.trim(),tanggal:tanggalMulai,tanggalMulai,tanggalSelesai,tanggalList,jam:document.getElementById('f-jam').value,durasi:`${jumlahHari} Hari`,jumlahHari,lokasi:document.getElementById('f-lokasi').value.trim(),warna:document.getElementById('f-warna').value,acara,papan,hargaSatuanBase,hargaSatuan,harga,promoLabel:promo?promo.label:'',promoDiscount:promo?promo.discount:0,paidAmount:0,paymentStatus:'Belum Bayar',ucapan:document.getElementById('f-ucapan').value.trim(),status:'Pending',proofUrl:uploadedProofUrl||'',createdAt:firebase.firestore.FieldValue.serverTimestamp(),createdAtText:new Date().toISOString()};
   const newOrder=ordersRef.doc();
   try{
     await db.runTransaction(async tx=>{
@@ -791,7 +759,7 @@ async function submitOrder(){
     waBtn.onclick=()=>window.open(waLink,'_blank');
   }
   ['f-nama','f-hp','f-tgl-mulai','f-tgl-selesai','f-jam','f-lokasi','f-ucapan'].forEach(id=>document.getElementById(id).value='');
-  ['f-id','f-warna','f-acara','f-papan'].forEach(id=>document.getElementById(id).value='');
+  ['f-warna','f-acara','f-papan'].forEach(id=>document.getElementById(id).value='');
   clearUpload();
   document.getElementById('price-group').style.display='none'; updateAvailability(); showPage('sukses');
   setTimeout(()=>window.open(waLink,'_blank'), 350);
@@ -855,7 +823,6 @@ function printNota(id){
           <h4>Data Pelanggan</h4>
           ${notaLine('Nama', esc(o.nama || '-'))}
           ${notaLine('No. HP', esc(o.hp || '-'))}
-          ${notaLine('Identitas', esc(o.identitas || '-'))}
           ${notaLine('Dibuat', esc(createdLabel(o)))}
         </div>
         <div class="nota-panel">
@@ -870,7 +837,10 @@ function printNota(id){
         </div>
       </div>
 
-      
+      <div class="nota-message">
+        <h4>Ucapan / Tulisan di Papan</h4>
+        <div class="nota-message-text">${esc(o.ucapan || '-')}</div>
+      </div>
 
       <div class="nota-total-panel">
         <div class="nota-payment-summary">
@@ -1051,7 +1021,7 @@ function viewOrder(id){
   const o=orders.find(x=>x.id===id); if(!o)return;
   const promoHtml=o.promoDiscount?`<div class="detail-row"><span class="key">Promo</span><span class="val"><span class="promo-badge">🎁 ${o.promoLabel} -${o.promoDiscount}%</span></span></div>`:'';
   const proofHtml=o.proofUrl?`<div class="detail-row"><span class="key">Bukti Bayar</span><span class="val"><img src="${o.proofUrl}" class="proof-thumb" onclick="openProofModal(orders.find(x=>x.id==='${o.id}')?.proofUrl||'')" title="Klik untuk perbesar"><br><span style="font-size:.73rem;color:var(--muted);">Klik foto untuk perbesar</span></span></div>`:'<div class="detail-row"><span class="key">Bukti Bayar</span><span class="val" style="color:var(--muted);">Belum upload</span></div>';
-  document.getElementById('modal-content').innerHTML=`<div class="detail-row"><span class="key">Kode Booking</span><span class="val">${o.bookingCode || o.id}</span></div><div class="detail-row"><span class="key">Nama</span><span class="val">${o.nama}</span></div><div class="detail-row"><span class="key">No. HP</span><span class="val">${o.hp}</span></div><div class="detail-row"><span class="key">Identitas</span><span class="val">${o.identitas}</span></div><div class="detail-row"><span class="key">Tanggal</span><span class="val">${formatDateRange(o.tanggalMulai||o.tanggal,o.tanggalSelesai||o.tanggal)} · ${o.jam}</span></div><div class="detail-row"><span class="key">Durasi</span><span class="val">${o.jumlahHari || rentalDays(o.tanggalMulai||o.tanggal,o.tanggalSelesai||o.tanggal)} hari</span></div><div class="detail-row"><span class="key">Lokasi</span><span class="val">${o.lokasi}</span></div><div class="detail-row"><span class="key">Warna Bunga</span><span class="val">${o.warna}</span></div><div class="detail-row"><span class="key">Acara</span><span class="val">${o.acara}</span></div><div class="detail-row"><span class="key">Jenis Papan</span><span class="val">${o.papan}</span></div><div class="detail-row"><span class="key">Harga</span><span class="val" style="color:var(--pink-deep);font-weight:700">${formatMoney(o.harga)}</span></div>${promoHtml}<div class="detail-row"><span class="key">Uang Masuk</span><span class="val">${formatMoney(paidAmount(o))}</span></div><div class="detail-row"><span class="key">Sisa Bayar</span><span class="val">${formatMoney(remainingAmount(o))}</span></div><div class="detail-row"><span class="key">Status</span><span class="val"><span class="badge badge-${String(o.status).toLowerCase()}">${o.status}</span></span></div>${proofHtml}<div class="detail-row"><span class="key">Ucapan</span><span class="val" style="white-space:pre-wrap">${o.ucapan}</span></div><div class="detail-row"><span class="key">Dipesan</span><span class="val">${createdLabel(o)}</span></div>`;
+  document.getElementById('modal-content').innerHTML=`<div class="detail-row"><span class="key">Kode Booking</span><span class="val">${o.bookingCode || o.id}</span></div><div class="detail-row"><span class="key">Nama</span><span class="val">${o.nama}</span></div><div class="detail-row"><span class="key">No. HP</span><span class="val">${o.hp}</span></div><div class="detail-row"><span class="key">Tanggal</span><span class="val">${formatDateRange(o.tanggalMulai||o.tanggal,o.tanggalSelesai||o.tanggal)} · ${o.jam}</span></div><div class="detail-row"><span class="key">Durasi</span><span class="val">${o.jumlahHari || rentalDays(o.tanggalMulai||o.tanggal,o.tanggalSelesai||o.tanggal)} hari</span></div><div class="detail-row"><span class="key">Lokasi</span><span class="val">${o.lokasi}</span></div><div class="detail-row"><span class="key">Warna Bunga</span><span class="val">${o.warna}</span></div><div class="detail-row"><span class="key">Acara</span><span class="val">${o.acara}</span></div><div class="detail-row"><span class="key">Jenis Papan</span><span class="val">${o.papan}</span></div><div class="detail-row"><span class="key">Harga</span><span class="val" style="color:var(--pink-deep);font-weight:700">${formatMoney(o.harga)}</span></div>${promoHtml}<div class="detail-row"><span class="key">Uang Masuk</span><span class="val">${formatMoney(paidAmount(o))}</span></div><div class="detail-row"><span class="key">Sisa Bayar</span><span class="val">${formatMoney(remainingAmount(o))}</span></div><div class="detail-row"><span class="key">Status</span><span class="val"><span class="badge badge-${String(o.status).toLowerCase()}">${o.status}</span></span></div>${proofHtml}<div class="detail-row"><span class="key">Ucapan</span><span class="val" style="white-space:pre-wrap">${o.ucapan}</span></div><div class="detail-row"><span class="key">Dipesan</span><span class="val">${createdLabel(o)}</span></div>`;
   document.getElementById('modal-actions').innerHTML=`${o.status!=='Lunas'&&o.status!=='Batal'?`<button class="action-btn dp" onclick="setPaymentStatus('${o.id}','DP');closeModal()">Catat DP</button><button class="action-btn confirm" onclick="setPaymentStatus('${o.id}','Lunas');closeModal()">Tandai Lunas</button>`:''} ${o.status!=='Batal'?`<button class="action-btn" style="background:#e8f5e9;color:#1b5e20;padding:8px 16px;font-size:.82rem;font-weight:600;" onclick="closeModal();printNota('${o.id}')">Cetak Nota</button>`:''}`;
   document.getElementById('detail-modal').classList.add('active');
 }
@@ -1112,9 +1082,9 @@ async function savePrices(){
 async function addBlockedDate(){ const d=document.getElementById('block-date-input').value; if(!d){toast('Pilih tanggal dulu');return;} if(!blockedDates.includes(d)){ await blockedRef.set({dates:[...blockedDates,d].sort()},{merge:true}); toast(formatDate(d)+' sudah diblocked'); } else toast('Tanggal sudah diblocked'); document.getElementById('block-date-input').value=''; }
 async function removeBlock(d){ await blockedRef.set({dates:blockedDates.filter(x=>x!==d)},{merge:true}); toast('Block dihapus: '+formatDate(d)); }
 function buildOrderRows(){
-  const header=['ID','Kode Booking','Nama','HP','Identitas','Tanggal Mulai','Tanggal Selesai','Jam','Durasi Hari','Lokasi','Warna','Acara','Papan','Harga Per Hari','Harga Total','Uang Masuk','Sisa Bayar','Ucapan','Status','Dibuat'];
+  const header=['ID','Kode Booking','Nama','HP','Tanggal Mulai','Tanggal Selesai','Jam','Durasi Hari','Lokasi','Warna','Acara','Papan','Harga Per Hari','Harga Total','Uang Masuk','Sisa Bayar','Ucapan','Status','Dibuat'];
   const rows=orders.map(o=>[
-    o.id, o.bookingCode||'', o.nama, o.hp, o.identitas,
+    o.id, o.bookingCode||'', o.nama, o.hp,
     o.tanggalMulai||o.tanggal, o.tanggalSelesai||o.tanggal, o.jam,
     o.jumlahHari||rentalDays(o.tanggalMulai||o.tanggal,o.tanggalSelesai||o.tanggal),
     o.lokasi, o.warna, o.acara, o.papan,
