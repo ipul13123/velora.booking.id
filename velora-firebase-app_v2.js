@@ -1,4 +1,4 @@
-const firebaseConfig = {
+﻿const firebaseConfig = {
   apiKey: "AIzaSyCMdmZYh6--CVR9yuHWCmbzWPXtyAAHduk",
   authDomain: "velora-booking-59896.firebaseapp.com",
   projectId: "velora-booking-59896",
