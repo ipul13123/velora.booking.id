@@ -23,13 +23,13 @@ const DEFAULT_CONTENT = {
   whatsapp: '6285717835248',
   qrisSrc: 'assets/qris.jpeg',
   gallerySubtitle: 'Banyak model lainnya di IG @velora.id — silakan SS & request ke admin 🌸',
-  galleryNote: '📸 <strong>Ingin model tertentu?</strong> Lihat koleksi lengkap di <strong>@velora.id</strong>, screenshot model yang disukai & kirim ke admin. <strong>Free request!</strong>',
+  galleryNote: '📸 <strong>Ingin model tertentu?</strong> Lihat katalog lengkap di <strong>@velora.id</strong>, screenshot model yang disukai & kirim ke admin. <strong>Free request!</strong>',
   gallery: [
     { src:'assets/foto1.jpeg', alt:'Papan Kubah Pink', caption:'Papan Kubah · Pink · Sidang Wisuda' },
     { src:'assets/foto2.jpeg', alt:'Papan Kubah Red', caption:'Papan Kubah · Merah · Sidang Wisuda' },
     { src:'assets/foto3.jpeg', alt:'Convex Mirror Pink', caption:'Convex Mirror · Pink · Sidang Wisuda' },
     { src:'assets/foto4.jpeg', alt:'Convex Mirror Pink Indoor', caption:'Convex Mirror · Pink · Indoor Event' },
-    { src:'assets/foto5.jpeg', alt:'Multiple Boards', caption:'Koleksi Lengkap · Berbagai Model' },
+    { src:'assets/foto5.jpeg', alt:'Multiple Boards', caption:'Katalog Lengkap · Berbagai Model' },
     { src:'assets/foto6.jpeg', alt:'Papan Gantung', caption:'Papan Gantung · Pink/Merah · Event & Wisuda' }
   ],
   // ── Hero ──
@@ -230,6 +230,17 @@ function getActivePromoForDate(dateStr){
     if(!p.dateFrom||!p.dateTo||!p.discount) return false;
     return dateStr>=p.dateFrom && dateStr<=p.dateTo;
   }) || null;
+}
+function renderHomePromo(){
+  const banner=document.getElementById('home-promo');
+  if(!banner) return;
+  const promo=getActivePromoForDate(toDateStr(new Date()));
+  banner.classList.toggle('show',!!promo);
+  if(!promo) return;
+  const title=document.getElementById('home-promo-title');
+  const desc=document.getElementById('home-promo-desc');
+  if(title) title.textContent=`🎉 ${promo.label || 'PROMO SPESIAL'}`;
+  if(desc) desc.textContent=`Diskon ${promo.discount}% · Berlaku sampai ${formatDate(promo.dateTo)}`;
 }
 function getPromoPrice(basePrice, promo){
   if(!promo||!promo.discount) return basePrice;
@@ -524,6 +535,12 @@ function renderContent(){
   if(heroAccent) heroAccent.textContent=siteContent.heroTitleAccent;
   const heroSub=document.getElementById('hero-subtitle');
   if(heroSub) heroSub.textContent=siteContent.heroSubtitle;
+  const startingPrice=document.getElementById('hero-starting-price');
+  if(startingPrice){
+    const prices=Object.values(priceMap || {}).flatMap(row=>Object.values(row || {})).filter(price=>Number(price)>0);
+    startingPrice.textContent=prices.length ? `Mulai dari ${formatMoney(Math.min(...prices))}` : 'Harga terbaik untuk acara spesialmu';
+  }
+  renderHomePromo();
 
   // Feature cards
   const featGrid=document.getElementById('features-grid');
@@ -567,9 +584,21 @@ function renderContent(){
   if(grid){
     grid.innerHTML=(siteContent.gallery || []).map(item=>`
       <div class="gallery-card">
-        <img src="${assetWithVersion(item.src)}" alt="${item.alt || item.caption || 'Koleksi Velora'}">
+        <img src="${assetWithVersion(item.src)}" alt="${item.alt || item.caption || 'Katalog Velora'}">
         <div class="caption">${item.caption || ''}</div>
       </div>`).join('');
+  }
+  const featuredGrid=document.getElementById('featured-catalog-grid');
+  if(featuredGrid){
+    const featuredPhotos=['assets/foto32.jpeg','assets/foto7.jpeg','assets/foto26.jpeg'];
+    featuredGrid.innerHTML=featuredPhotos.map(src=>{
+      const item=(siteContent.gallery || []).find(photo=>photo.src===src) || {src,alt:'Papan Ucapan Velora',caption:'Pilihan desain Velora.id'};
+      return `
+      <article class="featured-catalog-card">
+        <img src="${assetWithVersion(item.src)}" alt="${item.alt || item.caption || 'Katalog Velora'}">
+        <p>${item.caption || 'Papan ucapan elegan untuk acara spesial'}</p>
+      </article>`;
+    }).join('');
   }
 }
 function renderContentInputs(){
@@ -657,17 +686,17 @@ function renderGalleryAdminList(){
   list.innerHTML=(siteContent.gallery || []).map((item,i)=>`
     <div class="gallery-admin-row">
       <input id="gal-src-${i}" value="${item.src || ''}" placeholder="assets/foto1.jpeg">
-      <input id="gal-caption-${i}" value="${item.caption || ''}" placeholder="Caption koleksi">
+      <input id="gal-caption-${i}" value="${item.caption || ''}" placeholder="Caption katalog">
     </div>`).join('');
 }
 function addGalleryAdminRow(){
-  siteContent.gallery=[...(siteContent.gallery || []), {src:'assets/foto-baru.jpeg', alt:'Koleksi Velora', caption:'Caption foto baru'}];
+  siteContent.gallery=[...(siteContent.gallery || []), {src:'assets/foto-baru.jpeg', alt:'Katalog Velora', caption:'Caption foto baru'}];
   renderGalleryAdminList();
 }
 async function saveContent(){
   const gallery=(siteContent.gallery || []).map((item,i)=>({
     src:document.getElementById(`gal-src-${i}`)?.value.trim() || item.src,
-    alt:document.getElementById(`gal-caption-${i}`)?.value.trim() || 'Koleksi Velora',
+    alt:document.getElementById(`gal-caption-${i}`)?.value.trim() || 'Katalog Velora',
     caption:document.getElementById(`gal-caption-${i}`)?.value.trim() || ''
   })).filter(item=>item.src);
   const features=(siteContent.features || []).map((f,i)=>({
