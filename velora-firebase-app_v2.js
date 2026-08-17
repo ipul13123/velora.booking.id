@@ -1,4 +1,4 @@
-﻿const firebaseConfig = {
+const firebaseConfig = {
   apiKey: "AIzaSyCMdmZYh6--CVR9yuHWCmbzWPXtyAAHduk",
   authDomain: "velora-booking-59896.firebaseapp.com",
   projectId: "velora-booking-59896",
@@ -19,6 +19,11 @@ const ordersRef = db.collection('orders');
 const usageRef = db.collection('usage');
 const dailyStockRef = db.collection('settings').doc('dailyStock');
 const promosRef = db.collection('settings').doc('promos');
+const siteStatusRef = db.collection('settings').doc('siteStatus');
+const DEFAULT_SITE_STATUS = {
+  isClosed: false,
+  message: 'Velora.id sedang tutup sementara. Silakan kembali lagi nanti ya.'
+};
 const DEFAULT_CONTENT = {
   whatsapp: '6285717835248',
   qrisSrc: 'assets/qris.jpeg',
@@ -81,6 +86,7 @@ let orders = [], blockedDates = [], stockTotal = { ...DEFAULT_STOCK }, dailyStoc
 let promos = []; // [{label, dateFrom, dateTo, discount}]
 let uploadedProofUrl = ''; // base64 or URL of payment proof
 let isAdmin = false, ordersUnsub = null;
+let siteStatus = { ...DEFAULT_SITE_STATUS };
 const today = new Date();
 let calYear = today.getFullYear(), calMonth = today.getMonth();
 
@@ -143,6 +149,10 @@ function stockValueId(key){ return `sv-${key}`.replace(/[^a-zA-Z0-9_-]/g,'-'); }
 function encodeBoardKey(key){ return encodeURIComponent(key); }
 function decodeBoardKey(key){ return decodeURIComponent(key); }
 function refresh(){ const a=document.querySelector('.page.active'); renderContent(); renderPriceTable(); updatePrice(); updateAvailability(); if(!a) return; if(a.id==='page-cek') renderCalendar(); if(a.id==='page-admin'&&isAdmin) renderAdmin(); }
+function renderSiteClosure(){ const overlay=document.getElementById('site-closure-overlay'), message=document.getElementById('site-closure-message'); if(!overlay||!message)return; const closed=siteStatus.isClosed===true; message.textContent=siteStatus.message||DEFAULT_SITE_STATUS.message; overlay.classList.toggle('active',closed); overlay.setAttribute('aria-hidden',closed?'false':'true'); }
+function renderSiteStatusInputs(){ const toggle=document.getElementById('site-closed-toggle'), message=document.getElementById('site-closed-message'); if(toggle)toggle.checked=siteStatus.isClosed===true; if(message)message.value=siteStatus.message||DEFAULT_SITE_STATUS.message; }
+async function saveSiteStatus(){ if(!isAdmin){toast('Silakan masuk sebagai admin terlebih dahulu.');return;} const toggle=document.getElementById('site-closed-toggle'), message=document.getElementById('site-closed-message'); siteStatus={isClosed:!!toggle?.checked,message:message?.value.trim()||DEFAULT_SITE_STATUS.message}; await siteStatusRef.set({...siteStatus,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}); renderSiteClosure(); toast(siteStatus.isClosed?'Website sementara ditutup.':'Website kembali dibuka.'); }
+function openAdminFromClosure(){ const overlay=document.getElementById('site-closure-overlay'); if(overlay)overlay.classList.remove('active'); if(isAdmin)showPage('admin'); else showAdminOverlay(); }
 function toDateStr(date){ return date.getFullYear()+'-'+String(date.getMonth()+1).padStart(2,'0')+'-'+String(date.getDate()).padStart(2,'0'); }
 function formatDate(d){ return d ? new Date(d+'T00:00:00').toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'}) : '-'; }
 function formatMoney(n){ return 'Rp '+(Number(n)||0).toLocaleString('id-ID'); }
@@ -170,6 +180,7 @@ function startRealtimeData(){
   usageRef.onSnapshot(s=>{ usageByDate={}; s.forEach(d=>usageByDate[d.id]=d.data().counts||{}); refresh(); }, err);
   dailyStockRef.onSnapshot(d=>{ dailyStockByDate=d.exists&&d.data().items ? d.data().items : {}; refresh(); }, err);
   promosRef.onSnapshot(d=>{ promos=d.exists&&Array.isArray(d.data().items) ? d.data().items : []; refresh(); }, err);
+  siteStatusRef.onSnapshot(d=>{ siteStatus={...DEFAULT_SITE_STATUS,...(d.exists?d.data():{})}; renderSiteClosure(); if(document.getElementById('page-admin')?.classList.contains('active')&&isAdmin) renderSiteStatusInputs(); }, err);
 }
 function listenAdminOrders(){
   if(ordersUnsub) ordersUnsub();
@@ -744,6 +755,7 @@ async function saveContent(){
 }
 async function submitOrder(){
   if(!firebaseReady()){toast('Isi konfigurasi Firebase dulu.');return;}
+  if(siteStatus.isClosed){toast(siteStatus.message||DEFAULT_SITE_STATUS.message);return;}
   const fields=[['f-nama','Nama Penyewa'],['f-hp','No. HP'],['f-lokasi','Lokasi'],['f-acara','Kebutuhan Acara'],['f-papan','Jenis Papan'],['f-warna','Warna Bunga'],['f-tgl-mulai','Tanggal Mulai Sewa'],['f-tgl-selesai','Tanggal Selesai Sewa'],['f-jam','Jam'],['f-ucapan','Ucapan']];
   for(const [id,lbl] of fields){ const el=document.getElementById(id); if(!el||!el.value.trim()){toast('Mohon isi: '+lbl); if(el)el.focus(); return;} }
   const tanggalMulai=document.getElementById('f-tgl-mulai').value, tanggalSelesai=document.getElementById('f-tgl-selesai').value, papan=document.getElementById('f-papan').value, acara=document.getElementById('f-acara').value, warna=document.getElementById('f-warna').value;
@@ -995,7 +1007,7 @@ function renderAdmin(){
   const total=orders.length,pending=orders.filter(o=>o.status==='Pending').length,dp=orders.filter(o=>o.status==='DP').length,lunas=orders.filter(o=>o.status==='Lunas').length,revenue=orders.filter(o=>o.status!=='Batal').reduce((a,o)=>a+(Number(o.harga)||0),0),paid=orders.filter(o=>o.status!=='Batal').reduce((a,o)=>a+paidAmount(o),0);
   document.getElementById('stats-row').innerHTML=`<div class="stat-card"><div class="num">${total}</div><div class="lbl">Total Pesanan</div></div><div class="stat-card"><div class="num" style="color:#856404">${pending}</div><div class="lbl">Pending</div></div><div class="stat-card"><div class="num" style="color:#084298">${dp}</div><div class="lbl">Sudah DP</div></div><div class="stat-card"><div class="num" style="color:#0a3622">${lunas}</div><div class="lbl">Lunas</div></div><div class="stat-card"><div class="num" style="font-size:1.2rem;color:var(--pink-deep)">${formatMoney(paid)}</div><div class="lbl">Uang Masuk</div></div><div class="stat-card"><div class="num" style="font-size:1.2rem;color:var(--pink-deep)">${formatMoney(revenue)}</div><div class="lbl">Total Tagihan</div></div>`;
   renderAdminDashboard();
-  renderPromoAdmin(); renderBlockedList(); renderStockInputs(); renderDailyStockInputs(); renderPriceInputs(); renderContentInputs(); renderTable();
+  renderSiteStatusInputs(); renderPromoAdmin(); renderBlockedList(); renderStockInputs(); renderDailyStockInputs(); renderPriceInputs(); renderContentInputs(); renderTable();
 }
 function renderTable(){
   const statusFilter=document.getElementById('filter-status').value;
