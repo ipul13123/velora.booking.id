@@ -454,12 +454,10 @@
   /* ── MODAL ── */
   .modal-overlay { display:none; position:fixed; inset:0; z-index:500; background:rgba(45,31,46,0.6); backdrop-filter:blur(4px); align-items:center; justify-content:center; padding:20px; }
   .modal-overlay.active { display:flex; }
-  .site-closure-overlay { display:none; position:fixed; inset:0; z-index:1200; padding:20px; background:rgba(45,31,46,.82); backdrop-filter:blur(7px); align-items:center; justify-content:center; }
-  .site-closure-overlay.active { display:flex; }
-  .site-closure-card { width:min(520px,100%); padding:34px 28px; text-align:center; border:1px solid rgba(255,255,255,.25); border-radius:24px; background:linear-gradient(145deg,#fffafc,#fcebf4); box-shadow:0 20px 60px rgba(0,0,0,.28); }
-  .site-closure-card .closure-icon { font-size:3rem; line-height:1; margin-bottom:14px; }
-  .site-closure-card h2 { font-family:'Playfair Display',serif; font-size:1.7rem; color:var(--dark); margin-bottom:10px; }
-  .site-closure-card p { color:var(--text); line-height:1.65; white-space:pre-line; }
+  .site-closure-banner { display:none; max-width:760px; margin:0 auto 22px; padding:16px 20px; text-align:center; border:1px solid #edbed0; border-radius:16px; background:#fff1f6; color:var(--dark); box-shadow:0 8px 24px rgba(103,55,79,.10); }
+  .site-closure-banner.active { display:block; }
+  .site-closure-banner strong { display:block; font-family:'Playfair Display',serif; font-size:1.12rem; margin-bottom:5px; }
+  .site-closure-banner p { line-height:1.55; white-space:pre-line; }
   .site-status-admin { margin:20px 0; padding:20px; border:1px solid #f0cddd; border-radius:16px; background:#fff8fb; }
   .site-status-admin h3 { font-family:'Playfair Display',serif; font-size:1.08rem; margin-bottom:6px; }
   .site-status-admin p { color:var(--muted); font-size:.83rem; line-height:1.5; margin-bottom:14px; }
@@ -1009,9 +1007,6 @@
 </head>
 <body>
 
-<!-- WEBSITE CLOSED OVERLAY -->
-<div class="site-closure-overlay" id="site-closure-overlay" aria-hidden="true"><div class="site-closure-card" role="alert" aria-live="assertive"><div class="closure-icon">🌸</div><h2>Velora.id Tutup Sementara</h2><p id="site-closure-message">Velora.id sedang tutup sementara. Silakan kembali lagi nanti ya.</p><button class="btn btn-outline" style="margin-top:20px;font-size:.8rem;" onclick="openAdminFromClosure()">Admin</button></div></div>
-
 <!-- ADMIN LOGIN OVERLAY -->
 <div id="admin-login-overlay">
   <div class="admin-login-box">
@@ -1067,6 +1062,10 @@
 
 <!-- ═══════════════ HOME ═══════════════ -->
 <div id="page-home" class="page active">
+  <div class="site-closure-banner" id="site-closure-banner" aria-hidden="true" role="status">
+    <strong>Velora.id Tutup Sementara</strong>
+    <p id="site-closure-message">Velora.id sedang tutup sementara. Silakan kembali lagi nanti ya.</p>
+  </div>
   <div class="hero">
     <div class="home-promo" id="home-promo" aria-live="polite">
       <span class="home-promo-icon">🎁</span>
