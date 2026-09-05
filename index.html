@@ -1312,8 +1312,8 @@
   <div class="container">
     <div class="success-card">
       <div class="success-icon">🎉</div>
-      <h2 id="success-title">Pesanan Diterima!</h2>
-      <p id="success-desc">Terima kasih telah memesan di <strong>Velora.id</strong>. Pesananmu sudah kami catat. Jangan lupa kirim bukti DP/Pelunasan ke admin ya!</p>
+      <h2 id="success-title">Pesanan Kamu Telah Diterima!!!</h2>
+      <p id="success-desc">Terima kasih telah memesan di <strong>Velora.id</strong>. Pesananmu sudah kami catat. Jangan lupa kirim bukti DP/Pelunasan ke admin :)</p>
       <div class="order-summary" id="success-summary"></div>
       <div class="payment-box" id="success-payment-box" style="margin-top:16px;display:none;">
         <h4>💳 QRIS siap untuk pembayaran</h4>
@@ -1340,7 +1340,8 @@
           <div id="upload-status" style="font-size:.8rem;margin-top:6px;color:rgba(255,255,255,.75);"></div>
         </div>
       </div>
-      <button class="btn btn-pink" id="confirm-order-btn" style="margin-top:20px;width:100%;display:none;justify-content:center;" onclick="confirmPaymentOrder()">✅ Konfirmasi Pesanan &amp; Kirim ke Admin</button>
+      <button class="btn btn-pink" id="confirm-order-btn" style="margin-top:20px;width:100%;display:none;justify-content:center;" onclick="confirmPaymentOrder()">✅ Konfirmasi Pesanan</button>
+      <button class="btn btn-whatsapp" id="send-admin-btn" style="margin-top:20px;width:100%;display:none;justify-content:center;" onclick="sendOrderToAdmin()">📲 Kirim Pesanan ke Admin</button>
       <button class="btn btn-pink" style="margin-top:20px;width:100%" onclick="showPage('home')">Kembali ke Beranda</button>
     </div>
   </div>
@@ -1608,7 +1609,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="velora-firebase-app_v2.js?v=20260906-proof-optional"></script>
 </body>
