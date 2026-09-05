@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="id">
 <head>
 <meta charset="UTF-8">
@@ -454,16 +454,6 @@
   /* ── MODAL ── */
   .modal-overlay { display:none; position:fixed; inset:0; z-index:500; background:rgba(45,31,46,0.6); backdrop-filter:blur(4px); align-items:center; justify-content:center; padding:20px; }
   .modal-overlay.active { display:flex; }
-  .site-closure-banner { display:none; max-width:760px; margin:0 auto 22px; padding:16px 20px; text-align:center; border:1px solid #edbed0; border-radius:16px; background:#fff1f6; color:var(--dark); box-shadow:0 8px 24px rgba(103,55,79,.10); }
-  .site-closure-banner.active { display:block; }
-  .site-closure-banner strong { display:block; font-family:'Playfair Display',serif; font-size:1.12rem; margin-bottom:5px; }
-  .site-closure-banner p { line-height:1.55; white-space:pre-line; }
-  .site-status-admin { margin:20px 0; padding:20px; border:1px solid #f0cddd; border-radius:16px; background:#fff8fb; }
-  .site-status-admin h3 { font-family:'Playfair Display',serif; font-size:1.08rem; margin-bottom:6px; }
-  .site-status-admin p { color:var(--muted); font-size:.83rem; line-height:1.5; margin-bottom:14px; }
-  .site-status-toggle { display:flex; align-items:center; gap:10px; font-weight:700; color:var(--dark); margin-bottom:12px; cursor:pointer; }
-  .site-status-toggle input { width:18px; height:18px; accent-color:var(--pink-deep); }
-  .site-status-admin textarea { width:100%; min-height:88px; background:#fff; }
   .modal { background:var(--white); border-radius:24px; padding:36px; max-width:500px; width:100%; box-shadow:var(--shadow-lg); max-height:90vh; overflow-y:auto; }
   .modal h3 { font-family:'Playfair Display',serif; font-size:1.4rem; margin-bottom:16px; }
   .detail-row { display:flex; gap:8px; padding:10px 0; border-bottom:1px solid #f5eef5; font-size:.85rem; }
@@ -1062,10 +1052,6 @@
 
 <!-- ═══════════════ HOME ═══════════════ -->
 <div id="page-home" class="page active">
-  <div class="site-closure-banner" id="site-closure-banner" aria-hidden="true" role="status">
-    <strong>Velora.id Tutup Sementara</strong>
-    <p id="site-closure-message">Velora.id sedang tutup sementara. Silakan kembali lagi nanti ya.</p>
-  </div>
   <div class="hero">
     <div class="home-promo" id="home-promo" aria-live="polite">
       <span class="home-promo-icon">🎁</span>
@@ -1285,45 +1271,14 @@
         </div>
       </div>
 
-      <!-- Payment -->
-      <div class="payment-box">
-        <h4>💳 Pembayaran QRIS</h4>
-        <div class="qris-box">
-          <img src="assets/qris.jpeg?v=20260612" alt="QRIS Velora.id" class="qris-img">
-          <div style="font-size:.9rem;color:var(--gold-light);font-weight:600;">VELORA.ID</div>
-          <div style="font-size:.78rem;color:rgba(255,255,255,0.7);margin-top:3px;">Scan QRIS untuk DP 50% atau pelunasan 100%</div>
-        </div>
-        <p class="payment-nb">
-          <strong>NB:</strong> Order minimal harus DP 50% atau bisa lunas 100% dari harga sewa. Jika pesan tapi tidak melakukan minimal DP dianggap tidak pesan.<br>
-          Kirim bukti DP/Pelunasan ke admin Velora.id.
-        </p>
-      </div>
-
-      <!-- Upload Bukti Pembayaran -->
-      <div style="margin-top:16px;">
-        <label style="display:block;margin-bottom:8px;font-weight:600;">📎 Upload Bukti Pembayaran DP/Lunas <span style="color:var(--muted);font-weight:400;font-size:.8rem;">(Opsional — bisa upload sekarang atau kirim via WA)</span></label>
-        <div class="upload-zone" id="upload-zone" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="handleFileDrop(event)">
-          <input type="file" id="proof-file-input" accept="image/*" onchange="handleFileSelect(this)">
-          <div class="upload-icon">📷</div>
-          <div class="upload-txt">Klik atau drag foto bukti transfer / screenshot QRIS di sini</div>
-          <div class="upload-txt" style="margin-top:4px;font-size:.75rem;">Format: JPG, PNG, WEBP · Maks 5MB</div>
-        </div>
-        <div class="upload-progress" id="upload-progress"><div class="upload-progress-bar" id="upload-progress-bar"></div></div>
-        <div class="upload-preview" id="upload-preview">
-          <img id="upload-preview-img" src="" alt="Preview bukti">
-          <div style="font-size:.78rem;color:var(--muted);margin-top:6px;" id="upload-preview-name"></div>
-          <button onclick="clearUpload()" style="background:none;border:none;color:var(--pink-deep);font-size:.8rem;cursor:pointer;margin-top:4px;">✕ Hapus foto</button>
-        </div>
-        <div id="upload-status" style="font-size:.8rem;margin-top:6px;color:var(--muted);"></div>
-      </div>
-
       <div class="note-box" style="margin-bottom:20px;">
         📸 Banyak model di IG <strong>@velora.id</strong>, silakan SS & request ke admin. <strong>Free request!</strong>
       </div>
 
       <button class="btn btn-pink" id="submit-order-btn" style="width:100%;padding:14px;font-size:1rem;" onclick="submitOrder()">
-        🌸 Konfirmasi Pesanan
+        💳 Bayar Pesanan
       </button>
+      <p style="font-size:.78rem;color:var(--muted);text-align:center;margin-top:10px;line-height:1.5;">Stok akan dicek ulang saat tombol pembayaran ditekan. QRIS hanya tampil jika stok masih tersedia.</p>
     </div>
   </div>
 </div>
@@ -1336,15 +1291,32 @@
       <h2 id="success-title">Pesanan Diterima!</h2>
       <p id="success-desc">Terima kasih telah memesan di <strong>Velora.id</strong>. Pesananmu sudah kami catat. Jangan lupa kirim bukti DP/Pelunasan ke admin ya!</p>
       <div class="order-summary" id="success-summary"></div>
-      <button class="btn btn-whatsapp" id="wa-success-btn" style="width:100%;margin-bottom:12px;display:none;justify-content:center;">💬 Kirim Detail Pesanan ke Admin</button>
-      <div class="payment-box" style="margin-top:16px;">
-        <h4>💳 Bayar DP/Pelunasan via QRIS</h4>
+      <div class="payment-box" id="success-payment-box" style="margin-top:16px;display:none;">
+        <h4>💳 QRIS siap untuk pembayaran</h4>
         <div class="qris-box">
           <img src="assets/qris.jpeg?v=20260612" alt="QRIS Velora.id" class="qris-img">
           <div style="font-size:.9rem;color:var(--gold-light);font-weight:600;">VELORA.ID</div>
-          <div style="font-size:.78rem;color:rgba(255,255,255,0.7);margin-top:3px;">Scan QRIS, lalu kirim bukti pembayaran ke admin.</div>
+          <div id="success-payment-detail" style="font-size:.78rem;color:rgba(255,255,255,0.7);margin-top:3px;">Scan QRIS, lalu kirim bukti pembayaran ke admin.</div>
+        </div>
+        <p class="payment-nb"><strong>NB:</strong> Pesanan minimal DP 50% atau boleh lunas 100%. Setelah membayar, kirim bukti pembayaran ke admin Velora.id.</p>
+        <div style="margin-top:18px;">
+          <label style="display:block;margin-bottom:8px;font-weight:600;color:white;">📎 Upload Bukti Pembayaran DP/Lunas <span style="color:rgba(255,255,255,.7);font-weight:400;font-size:.8rem;">(Wajib sebelum konfirmasi pesanan)</span></label>
+          <div class="upload-zone" id="upload-zone" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="handleFileDrop(event)">
+            <input type="file" id="proof-file-input" accept="image/*" onchange="handleFileSelect(this)">
+            <div class="upload-icon">📷</div>
+            <div class="upload-txt">Klik atau drag foto bukti transfer / screenshot QRIS di sini</div>
+            <div class="upload-txt" style="margin-top:4px;font-size:.75rem;">Format: JPG, PNG, WEBP · Maks 5MB</div>
+          </div>
+          <div class="upload-progress" id="upload-progress"><div class="upload-progress-bar" id="upload-progress-bar"></div></div>
+          <div class="upload-preview" id="upload-preview">
+            <img id="upload-preview-img" src="" alt="Preview bukti">
+            <div style="font-size:.78rem;color:var(--muted);margin-top:6px;" id="upload-preview-name"></div>
+            <button onclick="clearUpload()" style="background:none;border:none;color:var(--pink-deep);font-size:.8rem;cursor:pointer;margin-top:4px;">✕ Hapus foto</button>
+          </div>
+          <div id="upload-status" style="font-size:.8rem;margin-top:6px;color:rgba(255,255,255,.75);"></div>
         </div>
       </div>
+      <button class="btn btn-pink" id="confirm-order-btn" style="margin-top:20px;width:100%;display:none;justify-content:center;" onclick="confirmPaymentOrder()">✅ Konfirmasi Pesanan &amp; Kirim ke Admin</button>
       <button class="btn btn-pink" style="margin-top:20px;width:100%" onclick="showPage('home')">Kembali ke Beranda</button>
     </div>
   </div>
@@ -1359,8 +1331,6 @@
     </div>
 
     <div class="stats-row" id="stats-row"></div>
-
-    <section class="site-status-admin"><h3>Status Operasional Velora.id</h3><p>Centang untuk menutup sementara tampilan pelanggan. Pesan di bawah akan tampil di layar pertama website.</p><label class="site-status-toggle"><input type="checkbox" id="site-closed-toggle">Tutup sementara Velora.id</label><label for="site-closed-message" style="display:block;font-size:.8rem;font-weight:600;margin-bottom:7px;">Pesan untuk pelanggan</label><textarea id="site-closed-message" placeholder="Tulis informasi penutupan sementara..."></textarea><button class="btn btn-pink" style="margin-top:12px;font-size:.82rem;" onclick="saveSiteStatus()">Simpan Status Website</button></section>
 
     <div class="admin-dashboard">
       <div class="admin-dashboard-head">
@@ -1611,6 +1581,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="velora-firebase-app_v2.js?v=20260731"></script>
+<script src="velora-firebase-app_v2.js?v=20260905-qris-flow"></script>
 </body>
 </html>

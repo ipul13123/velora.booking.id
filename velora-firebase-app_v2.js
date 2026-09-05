@@ -1,4 +1,4 @@
-const firebaseConfig = {
+﻿const firebaseConfig = {
   apiKey: "AIzaSyCMdmZYh6--CVR9yuHWCmbzWPXtyAAHduk",
   authDomain: "velora-booking-59896.firebaseapp.com",
   projectId: "velora-booking-59896",
@@ -19,11 +19,6 @@ const ordersRef = db.collection('orders');
 const usageRef = db.collection('usage');
 const dailyStockRef = db.collection('settings').doc('dailyStock');
 const promosRef = db.collection('settings').doc('promos');
-const siteStatusRef = db.collection('settings').doc('siteStatus');
-const DEFAULT_SITE_STATUS = {
-  isClosed: false,
-  message: 'Velora.id sedang tutup sementara. Silakan kembali lagi nanti ya.'
-};
 const DEFAULT_CONTENT = {
   whatsapp: '6285717835248',
   qrisSrc: 'assets/qris.jpeg',
@@ -85,8 +80,8 @@ const DEFAULT_STOCK = { 'Convex':2, 'Papan Bulat':2, 'Papan Kubah':2, 'Papan Gan
 let orders = [], blockedDates = [], stockTotal = { ...DEFAULT_STOCK }, dailyStockByDate = {}, usageByDate = {}, priceMap = JSON.parse(JSON.stringify(DEFAULT_PRICE_MAP));
 let promos = []; // [{label, dateFrom, dateTo, discount}]
 let uploadedProofUrl = ''; // base64 or URL of payment proof
+let currentPaymentOrder = null; // Pesanan yang menunggu bukti dan konfirmasi pelanggan
 let isAdmin = false, ordersUnsub = null;
-let siteStatus = { ...DEFAULT_SITE_STATUS };
 const today = new Date();
 let calYear = today.getFullYear(), calMonth = today.getMonth();
 
@@ -149,9 +144,6 @@ function stockValueId(key){ return `sv-${key}`.replace(/[^a-zA-Z0-9_-]/g,'-'); }
 function encodeBoardKey(key){ return encodeURIComponent(key); }
 function decodeBoardKey(key){ return decodeURIComponent(key); }
 function refresh(){ const a=document.querySelector('.page.active'); renderContent(); renderPriceTable(); updatePrice(); updateAvailability(); if(!a) return; if(a.id==='page-cek') renderCalendar(); if(a.id==='page-admin'&&isAdmin) renderAdmin(); }
-function renderSiteClosure(){ const banner=document.getElementById('site-closure-banner'), message=document.getElementById('site-closure-message'); if(!banner||!message)return; const closed=siteStatus.isClosed===true; message.textContent=siteStatus.message||DEFAULT_SITE_STATUS.message; banner.classList.toggle('active',closed); banner.setAttribute('aria-hidden',closed?'false':'true'); }
-function renderSiteStatusInputs(){ const toggle=document.getElementById('site-closed-toggle'), message=document.getElementById('site-closed-message'); if(toggle)toggle.checked=siteStatus.isClosed===true; if(message)message.value=siteStatus.message||DEFAULT_SITE_STATUS.message; }
-async function saveSiteStatus(){ if(!isAdmin){toast('Silakan masuk sebagai admin terlebih dahulu.');return;} const toggle=document.getElementById('site-closed-toggle'), message=document.getElementById('site-closed-message'); siteStatus={isClosed:!!toggle?.checked,message:message?.value.trim()||DEFAULT_SITE_STATUS.message}; await siteStatusRef.set({...siteStatus,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}); renderSiteClosure(); toast(siteStatus.isClosed?'Website sementara ditutup.':'Website kembali dibuka.'); }
 function toDateStr(date){ return date.getFullYear()+'-'+String(date.getMonth()+1).padStart(2,'0')+'-'+String(date.getDate()).padStart(2,'0'); }
 function formatDate(d){ return d ? new Date(d+'T00:00:00').toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'}) : '-'; }
 function formatMoney(n){ return 'Rp '+(Number(n)||0).toLocaleString('id-ID'); }
@@ -179,7 +171,6 @@ function startRealtimeData(){
   usageRef.onSnapshot(s=>{ usageByDate={}; s.forEach(d=>usageByDate[d.id]=d.data().counts||{}); refresh(); }, err);
   dailyStockRef.onSnapshot(d=>{ dailyStockByDate=d.exists&&d.data().items ? d.data().items : {}; refresh(); }, err);
   promosRef.onSnapshot(d=>{ promos=d.exists&&Array.isArray(d.data().items) ? d.data().items : []; refresh(); }, err);
-  siteStatusRef.onSnapshot(d=>{ siteStatus={...DEFAULT_SITE_STATUS,...(d.exists?d.data():{})}; renderSiteClosure(); if(document.getElementById('page-admin')?.classList.contains('active')&&isAdmin) renderSiteStatusInputs(); }, err);
 }
 function listenAdminOrders(){
   if(ordersUnsub) ordersUnsub();
@@ -453,9 +444,18 @@ function updateAvailability(){
   box.style.display='block';
   banner.className='status-banner '+(check.ready?'available':'unavailable');
   banner.innerHTML=check.ready
-    ? `<strong>Stok tersedia.</strong><br>${check.message}`
-    : `<strong>Stok belum tersedia.</strong><br>${check.message}`;
+    ? `<strong>Stok tersedia.</strong><br>${check.message} Tekan <strong>Bayar Pesanan</strong> untuk pengecekan stok terakhir dan menampilkan QRIS.`
+    : `<strong>Stok tidak tersedia.</strong><br>${check.message} Silakan pilih tanggal atau jenis papan lain, atau <button type="button" onclick="openWhatsAppAdmin()" style="border:0;background:none;color:inherit;text-decoration:underline;font:inherit;font-weight:700;cursor:pointer;padding:0;">hubungi admin</button>.`;
   if(btn) btn.disabled=!check.ready;
+}
+
+function showPaymentUnavailable(message){
+  const box=document.getElementById('availability-group'), banner=document.getElementById('availability-banner');
+  if(box) box.style.display='block';
+  if(banner){
+    banner.className='status-banner unavailable';
+    banner.innerHTML=`<strong>Stok tidak tersedia.</strong><br>${message} Silakan pilih tanggal atau jenis papan lain, atau <button type="button" onclick="openWhatsAppAdmin()" style="border:0;background:none;color:inherit;text-decoration:underline;font:inherit;font-weight:700;cursor:pointer;padding:0;">hubungi admin</button>.`;
+  }
 }
 function updatePrice(){
   updatePriceWithPromo();
@@ -573,9 +573,11 @@ function renderContent(){
 
   // Success page
   const sTitle=document.getElementById('success-title');
-  if(sTitle) sTitle.textContent=siteContent.successTitle;
+  if(sTitle) sTitle.textContent=currentPaymentOrder ? 'Selesaikan Pembayaran' : siteContent.successTitle;
   const sDesc=document.getElementById('success-desc');
-  if(sDesc) sDesc.innerHTML=siteContent.successDesc;
+  if(sDesc) sDesc.innerHTML=currentPaymentOrder
+    ? 'Stok sudah tersedia untuk pesananmu. Scan QRIS, unggah bukti pembayaran, lalu konfirmasi pesanan agar detailnya dikirim ke admin.'
+    : siteContent.successDesc;
 
   // Payment note
   document.querySelectorAll('.payment-nb').forEach(el=>el.innerHTML=siteContent.paymentNote);
@@ -754,7 +756,6 @@ async function saveContent(){
 }
 async function submitOrder(){
   if(!firebaseReady()){toast('Isi konfigurasi Firebase dulu.');return;}
-  if(siteStatus.isClosed){toast(siteStatus.message||DEFAULT_SITE_STATUS.message);return;}
   const fields=[['f-nama','Nama Penyewa'],['f-hp','No. HP'],['f-lokasi','Lokasi'],['f-acara','Kebutuhan Acara'],['f-papan','Jenis Papan'],['f-warna','Warna Bunga'],['f-tgl-mulai','Tanggal Mulai Sewa'],['f-tgl-selesai','Tanggal Selesai Sewa'],['f-jam','Jam'],['f-ucapan','Ucapan']];
   for(const [id,lbl] of fields){ const el=document.getElementById(id); if(!el||!el.value.trim()){toast('Mohon isi: '+lbl); if(el)el.focus(); return;} }
   const tanggalMulai=document.getElementById('f-tgl-mulai').value, tanggalSelesai=document.getElementById('f-tgl-selesai').value, papan=document.getElementById('f-papan').value, acara=document.getElementById('f-acara').value, warna=document.getElementById('f-warna').value;
@@ -765,10 +766,18 @@ async function submitOrder(){
   if(!jumlahHari){ toast('Tanggal selesai tidak boleh lebih awal dari tanggal mulai.'); return; }
   if(papan === 'Papan Gantung' && !['Pink','Merah'].includes(warna)){ toast('Papan Gantung hanya tersedia bunga Pink dan Merah.'); return; }
   const availability=getAvailabilityCheck(tanggalMulai,tanggalSelesai,papan);
-  if(availability.ready===false){ toast(availability.message); updateAvailability(); return; }
-  const order={nama:document.getElementById('f-nama').value.trim(),hp:document.getElementById('f-hp').value.trim(),tanggal:tanggalMulai,tanggalMulai,tanggalSelesai,tanggalList,jam:document.getElementById('f-jam').value,durasi:`${jumlahHari} Hari`,jumlahHari,lokasi:document.getElementById('f-lokasi').value.trim(),warna:document.getElementById('f-warna').value,acara,papan,hargaSatuanBase,hargaSatuan,harga,promoLabel:promo?promo.label:'',promoDiscount:promo?promo.discount:0,paidAmount:0,paymentStatus:'Belum Bayar',ucapan:document.getElementById('f-ucapan').value.trim(),status:'Pending',proofUrl:uploadedProofUrl||'',createdAt:firebase.firestore.FieldValue.serverTimestamp(),createdAtText:new Date().toISOString()};
+  if(availability.ready!==true){
+    const message=availability.ready===false ? availability.message : 'Lengkapi tanggal sewa dan jenis papan terlebih dahulu.';
+    showPaymentUnavailable(message);
+    toast(message);
+    return;
+  }
+  const order={nama:document.getElementById('f-nama').value.trim(),hp:document.getElementById('f-hp').value.trim(),tanggal:tanggalMulai,tanggalMulai,tanggalSelesai,tanggalList,jam:document.getElementById('f-jam').value,durasi:`${jumlahHari} Hari`,jumlahHari,lokasi:document.getElementById('f-lokasi').value.trim(),warna:document.getElementById('f-warna').value,acara,papan,hargaSatuanBase,hargaSatuan,harga,promoLabel:promo?promo.label:'',promoDiscount:promo?promo.discount:0,paidAmount:0,paymentStatus:'Belum Bayar',ucapan:document.getElementById('f-ucapan').value.trim(),status:'Menunggu Konfirmasi',proofUrl:'',createdAt:firebase.firestore.FieldValue.serverTimestamp(),createdAtText:new Date().toISOString()};
   const newOrder=ordersRef.doc();
+  const submitBtn=document.getElementById('submit-order-btn');
+  const originalBtnText=submitBtn?.innerHTML;
   try{
+    if(submitBtn){ submitBtn.disabled=true; submitBtn.textContent='Memeriksa stok...'; }
     await db.runTransaction(async tx=>{
       const sd=await tx.get(stockRef), bd=await tx.get(blockedRef), dd=await tx.get(dailyStockRef);
       const stock=sd.exists&&sd.data().items?stockBase(sd.data().items):stockBase(DEFAULT_STOCK);
@@ -788,21 +797,56 @@ async function submitOrder(){
         tx.set(usageRef.doc(d),{counts:{...counts,[papan]:(counts[papan]||0)+1}},{merge:true});
       });
     });
-  }catch(e){ if(String(e.message).startsWith('blocked:')) toast('Tanggal '+formatDate(e.message.split(':')[1])+' sedang tidak tersedia.'); else if(String(e.message).startsWith('out:')) toast('Stok papan ini habis pada '+formatDate(e.message.split(':')[1])+'.'); else err(e); return; }
+  }catch(e){
+    let message='';
+    if(String(e.message).startsWith('blocked:')) message='Tanggal '+formatDate(e.message.split(':')[1])+' sedang tidak tersedia.';
+    else if(String(e.message).startsWith('out:')) message='Stok '+papan+' habis pada '+formatDate(e.message.split(':')[1])+'.';
+    if(message){ showPaymentUnavailable(message); toast(message); }
+    else err(e);
+    return;
+  }finally{
+    if(submitBtn){ submitBtn.innerHTML=originalBtnText; updateAvailability(); }
+  }
   const promoRow=order.promoDiscount?`<div class="row"><span>Promo</span><span style="color:var(--pink-deep)">🎁 ${order.promoLabel} (-${order.promoDiscount}%)</span></div>`:'';
   document.getElementById('success-summary').innerHTML=`<div class="row"><span>Kode Booking</span><span>${order.bookingCode}</span></div><div class="row"><span>Nama</span><span>${order.nama}</span></div><div class="row"><span>Tanggal</span><span>${formatDateRange(order.tanggalMulai,order.tanggalSelesai)} · ${order.jam}</span></div><div class="row"><span>Jenis</span><span>${order.papan} · ${order.acara}</span></div><div class="row"><span>Lokasi</span><span>${order.lokasi}</span></div><div class="row"><span>Durasi</span><span>${order.jumlahHari} hari</span></div><div class="row"><span>Harga / hari</span><span>${formatMoney(order.hargaSatuan)}</span></div>${promoRow}<div class="row"><span>Total Sewa</span><span>${formatMoney(order.harga)}</span></div><div class="row"><span>Min. DP (50%)</span><span style="color:var(--pink-deep)">${formatMoney(Math.ceil(order.harga*0.5))}</span></div>`;
-  const waMessage = buildOrderWhatsAppMessage(order);
-  const waLink = getWhatsAppLink(waMessage);
-  const waBtn = document.getElementById('wa-success-btn');
-  if(waBtn){
-    waBtn.style.display='inline-flex';
-    waBtn.onclick=()=>window.open(waLink,'_blank');
-  }
+  currentPaymentOrder={id:newOrder.id,...order};
+  const paymentBox=document.getElementById('success-payment-box');
+  const paymentDetail=document.getElementById('success-payment-detail');
+  const confirmBtn=document.getElementById('confirm-order-btn');
+  if(paymentBox) paymentBox.style.display='block';
+  if(confirmBtn) confirmBtn.style.display='inline-flex';
+  if(paymentDetail) paymentDetail.textContent=`Scan QRIS untuk DP minimal ${formatMoney(Math.ceil(order.harga*0.5))} atau pelunasan ${formatMoney(order.harga)}, lalu kirim bukti pembayaran ke admin.`;
   ['f-nama','f-hp','f-tgl-mulai','f-tgl-selesai','f-jam','f-lokasi','f-ucapan'].forEach(id=>document.getElementById(id).value='');
   ['f-warna','f-acara','f-papan'].forEach(id=>document.getElementById(id).value='');
-  clearUpload();
   document.getElementById('price-group').style.display='none'; updateAvailability(); showPage('sukses');
-  setTimeout(()=>window.open(waLink,'_blank'), 350);
+}
+
+async function confirmPaymentOrder(){
+  if(!currentPaymentOrder){ toast('Pesanan pembayaran tidak ditemukan. Silakan isi pesanan kembali.'); return; }
+  if(!uploadedProofUrl){ toast('Unggah bukti pembayaran terlebih dahulu sebelum konfirmasi.'); return; }
+  const btn=document.getElementById('confirm-order-btn');
+  const originalText=btn?.innerHTML;
+  try{
+    if(btn){ btn.disabled=true; btn.textContent='Mengonfirmasi pesanan...'; }
+    await ordersRef.doc(currentPaymentOrder.id).update({
+      proofUrl:uploadedProofUrl,
+      status:'Pending',
+      customerConfirmedAt:firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    const confirmedOrder={...currentPaymentOrder,proofUrl:uploadedProofUrl,status:'Pending'};
+    const waLink=getWhatsAppLink(buildOrderWhatsAppMessage(confirmedOrder));
+    currentPaymentOrder=null;
+    document.getElementById('success-title').textContent=siteContent.successTitle;
+    document.getElementById('success-desc').innerHTML=siteContent.successDesc;
+    if(btn) btn.style.display='none';
+    clearUpload();
+    toast('Pesanan berhasil dikonfirmasi. Detail pesanan dikirim ke admin.');
+    window.open(waLink,'_blank');
+  }catch(e){
+    err(e);
+    if(btn){ btn.disabled=false; btn.innerHTML=originalText; }
+  }
 }
 
 // ══════════════ CETAK NOTA ══════════════
@@ -1006,7 +1050,7 @@ function renderAdmin(){
   const total=orders.length,pending=orders.filter(o=>o.status==='Pending').length,dp=orders.filter(o=>o.status==='DP').length,lunas=orders.filter(o=>o.status==='Lunas').length,revenue=orders.filter(o=>o.status!=='Batal').reduce((a,o)=>a+(Number(o.harga)||0),0),paid=orders.filter(o=>o.status!=='Batal').reduce((a,o)=>a+paidAmount(o),0);
   document.getElementById('stats-row').innerHTML=`<div class="stat-card"><div class="num">${total}</div><div class="lbl">Total Pesanan</div></div><div class="stat-card"><div class="num" style="color:#856404">${pending}</div><div class="lbl">Pending</div></div><div class="stat-card"><div class="num" style="color:#084298">${dp}</div><div class="lbl">Sudah DP</div></div><div class="stat-card"><div class="num" style="color:#0a3622">${lunas}</div><div class="lbl">Lunas</div></div><div class="stat-card"><div class="num" style="font-size:1.2rem;color:var(--pink-deep)">${formatMoney(paid)}</div><div class="lbl">Uang Masuk</div></div><div class="stat-card"><div class="num" style="font-size:1.2rem;color:var(--pink-deep)">${formatMoney(revenue)}</div><div class="lbl">Total Tagihan</div></div>`;
   renderAdminDashboard();
-  renderSiteStatusInputs(); renderPromoAdmin(); renderBlockedList(); renderStockInputs(); renderDailyStockInputs(); renderPriceInputs(); renderContentInputs(); renderTable();
+  renderPromoAdmin(); renderBlockedList(); renderStockInputs(); renderDailyStockInputs(); renderPriceInputs(); renderContentInputs(); renderTable();
 }
 function renderTable(){
   const statusFilter=document.getElementById('filter-status').value;
