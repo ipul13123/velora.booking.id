@@ -19,6 +19,7 @@ const ordersRef = db.collection('orders');
 const usageRef = db.collection('usage');
 const dailyStockRef = db.collection('settings').doc('dailyStock');
 const promosRef = db.collection('settings').doc('promos');
+const storeStatusRef = db.collection('settings').doc('storeStatus');
 const DEFAULT_CONTENT = {
   whatsapp: '6285717835248',
   qrisSrc: 'assets/qris.jpeg',
@@ -81,7 +82,7 @@ let orders = [], blockedDates = [], stockTotal = { ...DEFAULT_STOCK }, dailyStoc
 let promos = []; // [{label, dateFrom, dateTo, discount}]
 let uploadedProofUrl = ''; // base64 or URL of payment proof
 let currentPaymentOrder = null; // Pesanan yang menunggu bukti dan konfirmasi pelanggan
-let isAdmin = false, ordersUnsub = null;
+let isAdmin = false, ordersUnsub = null, storeOpen = true;
 const today = new Date();
 let calYear = today.getFullYear(), calMonth = today.getMonth();
 
@@ -171,6 +172,7 @@ function startRealtimeData(){
   usageRef.onSnapshot(s=>{ usageByDate={}; s.forEach(d=>usageByDate[d.id]=d.data().counts||{}); refresh(); }, err);
   dailyStockRef.onSnapshot(d=>{ dailyStockByDate=d.exists&&d.data().items ? d.data().items : {}; refresh(); }, err);
   promosRef.onSnapshot(d=>{ promos=d.exists&&Array.isArray(d.data().items) ? d.data().items : []; refresh(); }, err);
+  storeStatusRef.onSnapshot(d=>{ storeOpen=!(d.exists&&d.data().isOpen===false); renderStoreStatus(); }, err);
 }
 function listenAdminOrders(){
   if(ordersUnsub) ordersUnsub();
@@ -190,7 +192,7 @@ function toggleMobileMenu(){
   setMobileMenu(!nav?.classList.contains('menu-open'));
 }
 function closeMobileMenu(){ setMobileMenu(false); }
-function showPage(p){ closeMobileMenu(); if(p==='admin'&&!isAdmin){showAdminOverlay();return;} document.querySelectorAll('.page').forEach(el=>el.classList.remove('active')); document.getElementById('page-'+p).classList.add('active'); if(p==='cek') renderCalendar(); if(p==='admin') renderAdmin(); window.scrollTo(0,0); }
+function showPage(p){ closeMobileMenu(); if(p==='admin'&&!isAdmin){showAdminOverlay();return;} if(!storeOpen&&!isAdmin&&p!=='admin'){ renderStoreStatus(); return; } document.querySelectorAll('.page').forEach(el=>el.classList.remove('active')); document.getElementById('page-'+p).classList.add('active'); if(p==='cek') renderCalendar(); if(p==='admin') renderAdmin(); window.scrollTo(0,0); }
 function triggerAdmin(){ isAdmin ? showPage('admin') : showAdminOverlay(); }
 function showAdminOverlay(){ document.getElementById('admin-login-overlay').classList.add('active'); setTimeout(()=>document.getElementById('admin-email-input').focus(),100); }
 function closeAdminOverlay(){
@@ -222,7 +224,32 @@ async function checkAdminLogin(){
   }
 }
 async function adminLogout(){ await auth.signOut(); showPage('home'); }
-auth.onAuthStateChanged(u=>{ isAdmin=!!u; document.getElementById('admin-badge').style.display=isAdmin?'inline':'none'; if(isAdmin){ closeAdminOverlay(); listenAdminOrders(); } else { orders=[]; if(ordersUnsub) ordersUnsub(); if(document.getElementById('page-admin')?.classList.contains('active')) showPage('home'); } });
+auth.onAuthStateChanged(u=>{ isAdmin=!!u; document.getElementById('admin-badge').style.display=isAdmin?'inline':'none'; renderStoreStatus(); if(isAdmin){ closeAdminOverlay(); listenAdminOrders(); } else { orders=[]; if(ordersUnsub) ordersUnsub(); if(document.getElementById('page-admin')?.classList.contains('active')) showPage('home'); } });
+
+function renderStoreStatus(){
+  const overlay=document.getElementById('store-closed-overlay');
+  if(overlay) overlay.classList.toggle('active',!storeOpen&&!isAdmin);
+  const label=document.getElementById('store-status-label'), button=document.getElementById('store-toggle-btn');
+  if(label){
+    label.textContent=storeOpen ? '● Toko Dibuka' : '● Toko Ditutup Sementara';
+    label.className='store-status-pill '+(storeOpen?'open':'closed');
+  }
+  if(button){
+    button.textContent=storeOpen ? '🔒 Tutup Toko Sementara' : '🟢 Buka Kembali Toko';
+    button.className='btn '+(storeOpen?'btn-pink':'btn-whatsapp')+' store-toggle-btn';
+  }
+}
+
+async function toggleStoreStatus(){
+  if(!isAdmin){ showAdminOverlay(); return; }
+  const next=!storeOpen;
+  const message=next ? 'Buka toko kembali agar pelanggan dapat melihat dan memesan?' : 'Tutup toko sementara? Pelanggan akan melihat pemberitahuan penutupan.';
+  if(!confirm(message)) return;
+  try{
+    await storeStatusRef.set({isOpen:next,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+    toast(next ? 'Toko dibuka kembali.' : 'Toko ditutup sementara.');
+  }catch(e){ err(e); }
+}
 
 // ══════════════ PROMO FUNCTIONS ══════════════
 function getActivePromoForDate(dateStr){
