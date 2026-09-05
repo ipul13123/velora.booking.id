@@ -352,7 +352,6 @@
   .store-closed-card .closed-icon { font-size:4rem; margin-bottom:18px; }
   .store-closed-card h1 { font-family:'Playfair Display',serif; font-size:clamp(2rem,7vw,4.5rem); line-height:1.05; color:var(--gold-light); letter-spacing:.02em; }
   .store-closed-card p { margin:18px auto 28px; max-width:520px; color:rgba(255,255,255,.82); line-height:1.7; }
-  .store-closed-admin { display:block; margin:22px auto 0; border:0; background:transparent; color:rgba(255,255,255,.55); font:inherit; font-size:.75rem; cursor:pointer; text-decoration:underline; }
   .stats-row { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:16px; margin-bottom:32px; }
   .stat-card { background:var(--white); border-radius:16px; padding:20px; box-shadow:var(--shadow); text-align:center; }
   .stat-card .num { font-family:'Playfair Display',serif; font-size:2rem; color:var(--dark); }
@@ -1045,7 +1044,6 @@
     <h1 id="store-closed-title">VELORA SEDANG<br>TUTUP SEMENTARA</h1>
     <p>Mohon maaf, saat ini kami belum menerima pesanan baru. Silakan hubungi admin untuk informasi lebih lanjut.</p>
     <button class="btn btn-whatsapp" onclick="openWhatsAppAdmin()">💬 Hubungi Admin</button>
-    <button class="store-closed-admin" onclick="triggerAdmin()">Masuk sebagai admin</button>
   </div>
 </div>
 
@@ -1611,6 +1609,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="velora-firebase-app_v2.js?v=20260905-store-status"></script>
+<script src="velora-firebase-app_v2.js?v=20260906-admin-hash"></script>
 </body>
 </html>

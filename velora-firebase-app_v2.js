@@ -194,12 +194,17 @@ function toggleMobileMenu(){
 function closeMobileMenu(){ setMobileMenu(false); }
 function showPage(p){ closeMobileMenu(); if(p==='admin'&&!isAdmin){showAdminOverlay();return;} if(!storeOpen&&!isAdmin&&p!=='admin'){ renderStoreStatus(); return; } document.querySelectorAll('.page').forEach(el=>el.classList.remove('active')); document.getElementById('page-'+p).classList.add('active'); if(p==='cek') renderCalendar(); if(p==='admin') renderAdmin(); window.scrollTo(0,0); }
 function triggerAdmin(){ isAdmin ? showPage('admin') : showAdminOverlay(); }
-function showAdminOverlay(){ document.getElementById('admin-login-overlay').classList.add('active'); setTimeout(()=>document.getElementById('admin-email-input').focus(),100); }
+function showAdminOverlay(){
+  document.getElementById('store-closed-overlay')?.classList.remove('active');
+  document.getElementById('admin-login-overlay').classList.add('active');
+  setTimeout(()=>document.getElementById('admin-email-input').focus(),100);
+}
 function closeAdminOverlay(){
   document.getElementById('admin-login-overlay').classList.remove('active');
   document.getElementById('admin-err').style.display='none';
   document.getElementById('admin-email-input').value='';
   document.getElementById('admin-pass-input').value='';
+  renderStoreStatus();
 }
 function showAdminError(message){
   const el=document.getElementById('admin-err');
@@ -1233,6 +1238,13 @@ function copyText(text){ navigator.clipboard.writeText(text).catch(()=>{}); toas
 
 document.getElementById('admin-pass-input').addEventListener('keydown',e=>{if(e.key==='Enter')checkAdminLogin();});
 document.getElementById('admin-email-input').addEventListener('keydown',e=>{if(e.key==='Enter')checkAdminLogin();});
+function openAdminFromHash(){
+  if(window.location.hash.toLowerCase()!=='#admin') return;
+  triggerAdmin();
+  history.replaceState(null,'',window.location.pathname+window.location.search);
+}
+window.addEventListener('hashchange',openAdminFromHash);
+openAdminFromHash();
 renderPriceTable();
 renderContent();
 updateColorOptions();
