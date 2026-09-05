@@ -11,6 +11,7 @@
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
+const storage = firebase.storage();
 const stockRef = db.collection('settings').doc('stock');
 const blockedRef = db.collection('settings').doc('blocked');
 const priceRef = db.collection('settings').doc('prices');
@@ -80,7 +81,8 @@ const PAPAN_TYPES = [
 const DEFAULT_STOCK = { 'Convex':2, 'Papan Bulat':2, 'Papan Kubah':2, 'Papan Gantung':1 };
 let orders = [], blockedDates = [], stockTotal = { ...DEFAULT_STOCK }, dailyStockByDate = {}, usageByDate = {}, priceMap = JSON.parse(JSON.stringify(DEFAULT_PRICE_MAP));
 let promos = []; // [{label, dateFrom, dateTo, discount}]
-let uploadedProofUrl = ''; // base64 or URL of payment proof
+let uploadedProofUrl = ''; // base64 data URL, used ONLY for local preview
+let uploadedProofFile = null; // raw File object, this is what actually gets uploaded to Firebase Storage
 let currentPaymentOrder = null; // Pesanan yang menunggu bukti dan konfirmasi pelanggan
 let isAdmin = false, ordersUnsub = null, storeOpen = true;
 const today = new Date();
@@ -360,6 +362,7 @@ function handleFileDrop(event){
 function processUploadFile(file){
   if(!file.type.startsWith('image/')){ toast('Hanya file gambar yang diizinkan.'); return; }
   if(file.size>5*1024*1024){ toast('Ukuran file maksimal 5MB.'); return; }
+  uploadedProofFile=file; // simpan file asli, ini yang akan diupload ke Firebase Storage
   const progress=document.getElementById('upload-progress'), bar=document.getElementById('upload-progress-bar');
   const status=document.getElementById('upload-status'), preview=document.getElementById('upload-preview');
   progress.style.display='block'; bar.style.width='0%';
@@ -368,7 +371,7 @@ function processUploadFile(file){
   reader.onprogress=e=>{ if(e.lengthComputable) bar.style.width=(e.loaded/e.total*80)+'%'; };
   reader.onload=e=>{
     bar.style.width='100%';
-    uploadedProofUrl=e.target.result; // base64 data URL
+    uploadedProofUrl=e.target.result; // base64 data URL, HANYA untuk preview di layar, TIDAK dikirim ke Firestore
     document.getElementById('upload-preview-img').src=uploadedProofUrl;
     document.getElementById('upload-preview-name').textContent=`📎 ${file.name} (${(file.size/1024).toFixed(0)} KB)`;
     preview.style.display='block';
@@ -380,6 +383,7 @@ function processUploadFile(file){
 }
 function clearUpload(){
   uploadedProofUrl='';
+  uploadedProofFile=null;
   document.getElementById('proof-file-input').value='';
   document.getElementById('upload-preview').style.display='none';
   document.getElementById('upload-status').textContent='';
@@ -858,20 +862,29 @@ async function confirmPaymentOrder(){
   const btn=document.getElementById('confirm-order-btn');
   const originalText=btn?.innerHTML;
   if(btn){ btn.disabled=true; btn.textContent='Mengonfirmasi pesanan...'; }
-  let proofSaved=!uploadedProofUrl;
-  if(uploadedProofUrl){
+  let proofSaved=!uploadedProofFile;
+  let finalProofUrl='';
+  if(uploadedProofFile){
     try{
-    await ordersRef.doc(currentPaymentOrder.id).update({
-      proofUrl:uploadedProofUrl,
-      customerConfirmedAt:firebase.firestore.FieldValue.serverTimestamp(),
-      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
-    });
+      // Upload file asli ke Firebase Storage (bukan base64 ke Firestore, karena Firestore ada limit 1MB/dokumen)
+      const ext=(uploadedProofFile.name.split('.').pop()||'jpg').toLowerCase();
+      const path=`proofs/${currentPaymentOrder.id}_${Date.now()}.${ext}`;
+      const fileRef=storage.ref().child(path);
+      if(btn) btn.textContent='Mengupload bukti bayar...';
+      await fileRef.put(uploadedProofFile);
+      finalProofUrl=await fileRef.getDownloadURL();
+      await ordersRef.doc(currentPaymentOrder.id).update({
+        proofUrl:finalProofUrl,
+        customerConfirmedAt:firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+      });
       proofSaved=true;
     }catch(e){
       console.warn('Bukti tidak dapat disimpan ke Firebase.',e);
+      proofSaved=false;
     }
   }
-  const confirmedOrder={...currentPaymentOrder,proofUrl:proofSaved&&uploadedProofUrl ? uploadedProofUrl : '',status:'Pending'};
+  const confirmedOrder={...currentPaymentOrder,proofUrl:proofSaved&&finalProofUrl ? finalProofUrl : '',status:'Pending'};
   const waLink=getWhatsAppLink(buildOrderWhatsAppMessage(confirmedOrder));
   currentPaymentOrder=null;
   document.getElementById('success-title').textContent=siteContent.successTitle;
