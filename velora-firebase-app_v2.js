@@ -804,7 +804,7 @@ async function submitOrder(){
     toast(message);
     return;
   }
-  const order={nama:document.getElementById('f-nama').value.trim(),hp:document.getElementById('f-hp').value.trim(),tanggal:tanggalMulai,tanggalMulai,tanggalSelesai,tanggalList,jam:document.getElementById('f-jam').value,durasi:`${jumlahHari} Hari`,jumlahHari,lokasi:document.getElementById('f-lokasi').value.trim(),warna:document.getElementById('f-warna').value,acara,papan,hargaSatuanBase,hargaSatuan,harga,promoLabel:promo?promo.label:'',promoDiscount:promo?promo.discount:0,paidAmount:0,paymentStatus:'Belum Bayar',ucapan:document.getElementById('f-ucapan').value.trim(),status:'Menunggu Konfirmasi',proofUrl:'',createdAt:firebase.firestore.FieldValue.serverTimestamp(),createdAtText:new Date().toISOString()};
+  const order={nama:document.getElementById('f-nama').value.trim(),hp:document.getElementById('f-hp').value.trim(),tanggal:tanggalMulai,tanggalMulai,tanggalSelesai,tanggalList,jam:document.getElementById('f-jam').value,durasi:`${jumlahHari} Hari`,jumlahHari,lokasi:document.getElementById('f-lokasi').value.trim(),warna:document.getElementById('f-warna').value,acara,papan,hargaSatuanBase,hargaSatuan,harga,promoLabel:promo?promo.label:'',promoDiscount:promo?promo.discount:0,paidAmount:0,paymentStatus:'Belum Bayar',ucapan:document.getElementById('f-ucapan').value.trim(),status:'Pending',proofUrl:'',createdAt:firebase.firestore.FieldValue.serverTimestamp(),createdAtText:new Date().toISOString()};
   const newOrder=ordersRef.doc();
   const submitBtn=document.getElementById('submit-order-btn');
   const originalBtnText=submitBtn?.innerHTML;
@@ -855,30 +855,31 @@ async function submitOrder(){
 
 async function confirmPaymentOrder(){
   if(!currentPaymentOrder){ toast('Pesanan pembayaran tidak ditemukan. Silakan isi pesanan kembali.'); return; }
-  if(!uploadedProofUrl){ toast('Unggah bukti pembayaran terlebih dahulu sebelum konfirmasi.'); return; }
   const btn=document.getElementById('confirm-order-btn');
   const originalText=btn?.innerHTML;
-  try{
-    if(btn){ btn.disabled=true; btn.textContent='Mengonfirmasi pesanan...'; }
+  if(btn){ btn.disabled=true; btn.textContent='Mengonfirmasi pesanan...'; }
+  let proofSaved=!uploadedProofUrl;
+  if(uploadedProofUrl){
+    try{
     await ordersRef.doc(currentPaymentOrder.id).update({
       proofUrl:uploadedProofUrl,
-      status:'Pending',
       customerConfirmedAt:firebase.firestore.FieldValue.serverTimestamp(),
       updatedAt:firebase.firestore.FieldValue.serverTimestamp()
     });
-    const confirmedOrder={...currentPaymentOrder,proofUrl:uploadedProofUrl,status:'Pending'};
-    const waLink=getWhatsAppLink(buildOrderWhatsAppMessage(confirmedOrder));
-    currentPaymentOrder=null;
-    document.getElementById('success-title').textContent=siteContent.successTitle;
-    document.getElementById('success-desc').innerHTML=siteContent.successDesc;
-    if(btn) btn.style.display='none';
-    clearUpload();
-    toast('Pesanan berhasil dikonfirmasi. Detail pesanan dikirim ke admin.');
-    window.open(waLink,'_blank');
-  }catch(e){
-    err(e);
-    if(btn){ btn.disabled=false; btn.innerHTML=originalText; }
+      proofSaved=true;
+    }catch(e){
+      console.warn('Bukti tidak dapat disimpan ke Firebase.',e);
+    }
   }
+  const confirmedOrder={...currentPaymentOrder,proofUrl:proofSaved&&uploadedProofUrl ? uploadedProofUrl : '',status:'Pending'};
+  const waLink=getWhatsAppLink(buildOrderWhatsAppMessage(confirmedOrder));
+  currentPaymentOrder=null;
+  document.getElementById('success-title').textContent=siteContent.successTitle;
+  document.getElementById('success-desc').innerHTML=siteContent.successDesc;
+  if(btn) btn.style.display='none';
+  clearUpload();
+  toast(proofSaved ? 'Pesanan berhasil dikonfirmasi. Detail pesanan dikirim ke admin.' : 'Pesanan dikonfirmasi. Kirim foto bukti langsung lewat WhatsApp admin.');
+  window.open(waLink,'_blank');
 }
 
 // ══════════════ CETAK NOTA ══════════════
