@@ -80,7 +80,7 @@ const PAPAN_TYPES = [
 const DEFAULT_STOCK = { 'Convex':2, 'Papan Bulat':2, 'Papan Kubah':2, 'Papan Gantung':1 };
 let orders = [], blockedDates = [], stockTotal = { ...DEFAULT_STOCK }, dailyStockByDate = {}, usageByDate = {}, priceMap = JSON.parse(JSON.stringify(DEFAULT_PRICE_MAP));
 let promos = []; // [{label, dateFrom, dateTo, discount}]
-let uploadedProofUrl = ''; // base64 (terkompres) yang disimpan ke Firestore
+let uploadedProofUrl = ''; // base64 or URL of payment proof
 let currentPaymentOrder = null; // Pesanan yang menunggu bukti dan konfirmasi pelanggan
 let pendingAdminWaLink = ''; // Link WhatsApp yang menunggu diklik lewat tombol "Kirim Pesanan ke Admin"
 let isAdmin = false, ordersUnsub = null, storeOpen = true;
@@ -363,42 +363,18 @@ function processUploadFile(file){
   if(file.size>5*1024*1024){ toast('Ukuran file maksimal 5MB.'); return; }
   const progress=document.getElementById('upload-progress'), bar=document.getElementById('upload-progress-bar');
   const status=document.getElementById('upload-status'), preview=document.getElementById('upload-preview');
-  progress.style.display='block'; bar.style.width='10%';
+  progress.style.display='block'; bar.style.width='0%';
   status.textContent='Memproses foto...';
   const reader=new FileReader();
+  reader.onprogress=e=>{ if(e.lengthComputable) bar.style.width=(e.loaded/e.total*80)+'%'; };
   reader.onload=e=>{
-    const img=new Image();
-    img.onload=()=>{
-      bar.style.width='60%';
-      const maxDim=1280;
-      let w=img.width, h=img.height;
-      if(w>maxDim||h>maxDim){
-        if(w>h){ h=Math.round(h*maxDim/w); w=maxDim; } else { w=Math.round(w*maxDim/h); h=maxDim; }
-      }
-      const canvas=document.createElement('canvas');
-      canvas.width=w; canvas.height=h;
-      canvas.getContext('2d').drawImage(img,0,0,w,h);
-      let quality=0.82, dataUrl=canvas.toDataURL('image/jpeg',quality);
-      // Turunkan kualitas bertahap kalau masih terlalu besar untuk disimpan ke Firestore (batas ~1MB per dokumen)
-      while(dataUrl.length>700*1024 && quality>0.3){
-        quality-=0.1;
-        dataUrl=canvas.toDataURL('image/jpeg',quality);
-      }
-      if(dataUrl.length>900*1024){
-        toast('Foto masih terlalu besar setelah dikompres. Coba foto lain atau kirim langsung lewat WhatsApp admin.');
-        progress.style.display='none';
-        return;
-      }
-      uploadedProofUrl=dataUrl;
-      bar.style.width='100%';
-      document.getElementById('upload-preview-img').src=uploadedProofUrl;
-      document.getElementById('upload-preview-name').textContent=`📎 ${file.name} (~${(dataUrl.length/1024).toFixed(0)} KB terkompres)`;
-      preview.style.display='block';
-      status.textContent='✅ Foto bukti siap dikirim bersama pesanan.';
-      setTimeout(()=>{ progress.style.display='none'; },600);
-    };
-    img.onerror=()=>{ status.textContent='❌ Gagal memproses foto.'; progress.style.display='none'; };
-    img.src=e.target.result;
+    bar.style.width='100%';
+    uploadedProofUrl=e.target.result; // base64 data URL
+    document.getElementById('upload-preview-img').src=uploadedProofUrl;
+    document.getElementById('upload-preview-name').textContent=`📎 ${file.name} (${(file.size/1024).toFixed(0)} KB)`;
+    preview.style.display='block';
+    status.textContent='✅ Foto bukti siap dikirim bersama pesanan.';
+    setTimeout(()=>{ progress.style.display='none'; },600);
   };
   reader.onerror=()=>{ status.textContent='❌ Gagal membaca file.'; progress.style.display='none'; };
   reader.readAsDataURL(file);
@@ -881,19 +857,19 @@ async function submitOrder(){
 async function confirmPaymentOrder(){
   if(!currentPaymentOrder){ toast('Pesanan pembayaran tidak ditemukan. Silakan isi pesanan kembali.'); return; }
   const btn=document.getElementById('confirm-order-btn');
+  const originalText=btn?.innerHTML;
   if(btn){ btn.disabled=true; btn.textContent='Mengonfirmasi pesanan...'; }
   let proofSaved=!uploadedProofUrl;
   if(uploadedProofUrl){
     try{
-      await ordersRef.doc(currentPaymentOrder.id).update({
-        proofUrl:uploadedProofUrl,
-        customerConfirmedAt:firebase.firestore.FieldValue.serverTimestamp(),
-        updatedAt:firebase.firestore.FieldValue.serverTimestamp()
-      });
+    await ordersRef.doc(currentPaymentOrder.id).update({
+      proofUrl:uploadedProofUrl,
+      customerConfirmedAt:firebase.firestore.FieldValue.serverTimestamp(),
+      updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
       proofSaved=true;
     }catch(e){
-      console.warn('Bukti tidak dapat disimpan ke Firestore.',e);
-      proofSaved=false;
+      console.warn('Bukti tidak dapat disimpan ke Firebase.',e);
     }
   }
   const confirmedOrder={...currentPaymentOrder,proofUrl:proofSaved&&uploadedProofUrl ? uploadedProofUrl : '',status:'Pending'};
@@ -907,7 +883,7 @@ async function confirmPaymentOrder(){
   const sendAdminBtn=document.getElementById('send-admin-btn');
   if(sendAdminBtn) sendAdminBtn.style.display='inline-flex';
   clearUpload();
-  toast(proofSaved ? 'Pesanan berhasil dikonfirmasi. Silakan kirim ke admin.' : 'Pesanan dikonfirmasi, tapi bukti gagal tersimpan. Kirim foto bukti langsung lewat WhatsApp admin.');
+  toast(proofSaved ? 'Pesanan berhasil dikonfirmasi. Silakan kirim ke admin.' : 'Pesanan dikonfirmasi. Kirim foto bukti langsung lewat WhatsApp admin.');
 }
 
 function sendOrderToAdmin(){

@@ -865,25 +865,38 @@
   .nota-btn.print { background:linear-gradient(135deg,var(--pink-deep),var(--gold)); color:white; }
 
   @media print {
-    body * { visibility:hidden !important; }
-    #nota-overlay, #nota-overlay * { visibility:visible !important; }
+    html, body {
+      overflow:visible !important;
+      height:auto !important;
+      min-height:0 !important;
+      width:auto !important;
+      background:white !important;
+    }
+    /* Sembunyikan TOTAL semua elemen lain di halaman (bukan cuma visibility,
+       supaya tidak menyisakan ruang kosong yang bikin nota terdorong/berantakan) */
+    body > *:not(#nota-overlay) { display:none !important; }
+
     #nota-overlay {
       display:block !important;
       position:static !important;
       inset:auto !important;
+      z-index:auto !important;
       background:white !important;
       padding:0 !important;
+      margin:0 !important;
       overflow:visible !important;
       backdrop-filter:none !important;
     }
-    .nota-shell { width:100% !important; margin:0 !important; }
+    .nota-shell { width:100% !important; max-width:100% !important; margin:0 !important; }
     .nota-sheet {
       box-shadow:none !important;
       border-radius:0 !important;
       border:none !important;
       width:100% !important;
     }
+    .nota-hero::after { display:none !important; } /* watermark besar buang tinta */
     .nota-actions { display:none !important; }
+    * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
     @page { size:A4; margin:10mm; }
   }
 
