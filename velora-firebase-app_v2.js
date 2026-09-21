@@ -918,15 +918,19 @@ function printNota(id){
   const now = new Date();
   const printDate = now.toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'});
   const printTime = now.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+  const logoSrc = assetWithVersion((siteContent && siteContent.heroLogo) || 'assets/logo.jpeg');
+  const ALAMAT_TOKO = 'Undaan Lor Gg 20, Kec. Undaan, Kab. Kudus';
+  const HP_TOKO = '085717835248';
 
   sheet.innerHTML = `
     <div class="nota-hero">
       <div class="nota-topline">
         <div class="nota-brandmark">
-          <div class="nota-monogram">V</div>
+          <div class="nota-monogram"><img src="${esc(logoSrc)}" alt="Velora.id" onerror="this.parentElement.textContent='V'"></div>
           <div>
             <div class="nota-brand-name">velora.id</div>
             <div class="nota-brand-sub">Beauty Reflections</div>
+            <div class="nota-brand-address">${esc(ALAMAT_TOKO)}<br>No. HP: ${esc(HP_TOKO)}</div>
           </div>
         </div>
         <div class="nota-status-pill">${esc(statusNote)}</div>
